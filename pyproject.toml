@@ -1,0 +1,13 @@
+[project]
+name = "my-dragents"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "deepagents>=0.2.4",
+    "dotenv>=0.9.9",
+    "langchain-google-genai>=3.0.0",
+    "langgraph-cli[inmem]>=0.4.5",
+    "tavily-python>=0.7.12",
+]
