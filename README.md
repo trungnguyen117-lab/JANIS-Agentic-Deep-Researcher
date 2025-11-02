@@ -15,8 +15,7 @@ Trên Windows, bạn có thể tải bản cài đặt trực tiếp từ trang 
 ## Bước 2: Clone repo
 
 ```bash
-git clone https://github.com/<tên-người-dùng>/<tên-repo>.git
-cd <tên-repo>
+git clone hhttps://github.com/trungnguyen117-lab/JANIS-Agentic-Deep-Researcher.git
 ```
 
 ---
@@ -50,7 +49,7 @@ Frontend sẽ chạy tại địa chỉ mặc định:
 ## Bước 5: Khởi chạy Backend
 
 ```bash
-cd backend
 uv sync
+cd backend
 langgraph dev --allow-blocking
 ```
