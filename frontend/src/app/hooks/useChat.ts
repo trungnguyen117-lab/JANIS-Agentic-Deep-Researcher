@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { TodoItem } from "../types/types";
 import { createClient } from "@/lib/client";
 import { useAuthContext } from "@/providers/Auth";
+import { extractFileContent } from "../utils/fileContentUtils";
 
 type StateType = {
   messages: Message[];
@@ -32,6 +33,11 @@ export function useChat(
     return deployment.agentId;
   }, [deployment]);
 
+  const normalizeFileContent = useCallback((content: any): string => {
+    // Use utility function to extract content from deepagents format
+    return extractFileContent(content);
+  }, []);
+
   const handleUpdateEvent = useCallback(
     (data: { [node: string]: Partial<StateType> }) => {
       Object.entries(data).forEach(([_, nodeData]) => {
@@ -39,11 +45,24 @@ export function useChat(
           onTodosUpdate(nodeData.todos);
         }
         if (nodeData?.files) {
-          onFilesUpdate(nodeData.files);
+          console.log("[handleUpdateEvent] Received files:", nodeData.files);
+          console.log("[handleUpdateEvent] Files keys:", Object.keys(nodeData.files));
+          // Normalize file content to ensure all values are strings
+          const normalizedFiles: Record<string, string> = {};
+          Object.entries(nodeData.files).forEach(([path, content]) => {
+            console.log(`[handleUpdateEvent] Processing file: ${path}`);
+            console.log(`[handleUpdateEvent] File ${path} content type:`, typeof content);
+            console.log(`[handleUpdateEvent] File ${path} content:`, content);
+            normalizedFiles[path] = normalizeFileContent(content);
+            console.log(`[handleUpdateEvent] File ${path} normalized length:`, normalizedFiles[path].length);
+            console.log(`[handleUpdateEvent] File ${path} normalized preview:`, normalizedFiles[path].substring(0, 200));
+          });
+          console.log("[handleUpdateEvent] Final normalized files:", normalizedFiles);
+          onFilesUpdate(normalizedFiles);
         }
       });
     },
-    [onTodosUpdate, onFilesUpdate],
+    [onTodosUpdate, onFilesUpdate, normalizeFileContent],
   );
 
   const stream = useStream<StateType>({

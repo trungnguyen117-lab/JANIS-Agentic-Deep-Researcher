@@ -10,4 +10,6 @@ dependencies = [
     "langchain-google-genai>=3.0.0",
     "langgraph-cli[inmem]>=0.4.5",
     "tavily-python>=0.7.12",
+    "langchain-openai",
+    "aiohttp>=3.9.0",  # For async HTTP requests to avoid blocking I/O
 ]

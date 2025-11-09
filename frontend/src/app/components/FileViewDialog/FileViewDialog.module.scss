@@ -8,6 +8,7 @@
   flex-direction: column !important;
   background-color: var(--color-background) !important;
   padding: $spacing-lg !important;
+  overflow: hidden !important; // Prevent dialog from scrolling
 }
 
 .header {
@@ -63,7 +64,9 @@
 
 .contentArea {
   flex: 1;
+  min-height: 0;
   max-height: 60vh;
+  width: 100%;
   overflow: auto;
   background-color: var(--color-surface);
   border-radius: $radius-md;
@@ -106,4 +109,25 @@
   padding: $spacing-lg;
   background-color: var(--color-background);
   border-radius: $radius-md;
+  overflow: auto;
+  width: 100%;
+  min-width: 0;
+  
+  // Ensure markdown content can scroll
+  * {
+    max-width: 100%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  
+  // Code blocks should scroll horizontally
+  pre {
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  
+  code {
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
 }

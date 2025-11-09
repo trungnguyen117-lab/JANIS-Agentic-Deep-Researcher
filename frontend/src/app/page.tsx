@@ -9,6 +9,7 @@ import { FileViewDialog } from "./components/FileViewDialog/FileViewDialog";
 import { createClient } from "@/lib/client";
 import { useAuthContext } from "@/providers/Auth";
 import type { SubAgent, FileItem, TodoItem } from "./types/types";
+import { extractFileContent } from "./utils/fileContentUtils";
 import styles from "./page.module.scss";
 
 export default function HomePage() {
@@ -44,10 +45,19 @@ export default function HomePage() {
         if (state.values) {
           const currentState = state.values as {
             todos?: TodoItem[];
-            files?: Record<string, string>;
+            files?: Record<string, any>;
           };
           setTodos(currentState.todos || []);
-          setFiles(currentState.files || {});
+          
+          // Normalize file content to ensure all values are strings
+          const normalizedFiles: Record<string, string> = {};
+          if (currentState.files) {
+            Object.entries(currentState.files).forEach(([path, content]) => {
+              // Use utility function to extract content from deepagents format
+              normalizedFiles[path] = extractFileContent(content);
+            });
+          }
+          setFiles(normalizedFiles);
         }
       } catch (error) {
         console.error("Failed to fetch thread state:", error);

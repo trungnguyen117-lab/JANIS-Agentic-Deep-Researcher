@@ -4,6 +4,8 @@ export interface ToolCall {
   args: any;
   result?: string;
   status: "pending" | "completed" | "error";
+  subagentType?: string; // For sub-agent tool calls
+  parentToolCallId?: string; // ID of the parent task tool call
 }
 
 export interface SubAgent {

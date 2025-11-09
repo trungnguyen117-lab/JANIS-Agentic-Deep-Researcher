@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import type { TodoItem, FileItem } from "../../types/types";
+import { extractFileContent } from "../../utils/fileContentUtils";
 import styles from "./TasksFilesSidebar.module.scss";
 
 interface TasksFilesSidebarProps {
@@ -146,19 +147,23 @@ export const TasksFilesSidebar = React.memo<TasksFilesSidebarProps>(
                 </div>
               ) : (
                 <div className={styles.fileTree}>
-                  {Object.keys(files).map((file) => (
-                    <div key={file} className={styles.fileItem}>
-                      <div
-                        className={styles.fileRow}
-                        onClick={() =>
-                          onFileClick({ path: file, content: files[file] })
-                        }
-                      >
-                        <FileText size={16} />
-                        <span className={styles.fileName}>{file}</span>
+                  {Object.keys(files).map((file) => {
+                    // Use utility function to extract content from deepagents format
+                    const fileContent = extractFileContent(files[file]);
+                    return (
+                      <div key={file} className={styles.fileItem}>
+                        <div
+                          className={styles.fileRow}
+                          onClick={() =>
+                            onFileClick({ path: file, content: fileContent })
+                          }
+                        >
+                          <FileText size={16} />
+                          <span className={styles.fileName}>{file}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </ScrollArea>

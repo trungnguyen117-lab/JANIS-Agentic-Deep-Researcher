@@ -148,6 +148,11 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           if (!toolCallId) {
             return;
           }
+          
+          // Check if this tool message contains sub-agent tool calls
+          const subagentToolCalls = (message.additional_kwargs as any)?.subagent_tool_calls;
+          const subagentType = (message.additional_kwargs as any)?.subagent_type;
+          
           for (const [, data] of messageMap.entries()) {
             const toolCallIndex = data.toolCalls.findIndex(
               (tc: any) => tc.id === toolCallId,
@@ -155,12 +160,30 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
             if (toolCallIndex === -1) {
               continue;
             }
+            
+            // Update the tool call with result
             data.toolCalls[toolCallIndex] = {
               ...data.toolCalls[toolCallIndex],
               status: "completed" as const,
-              // TODO: Make this nicer
               result: extractStringFromMessageContent(message),
             };
+            
+            // If this is a task tool call with sub-agent tool calls, add them to the message
+            if (subagentToolCalls && Array.isArray(subagentToolCalls) && subagentToolCalls.length > 0) {
+              // Add sub-agent tool calls to the message data
+              if (!data.subagentToolCalls) {
+                data.subagentToolCalls = [];
+              }
+              // Add sub-agent tool calls with metadata
+              subagentToolCalls.forEach((tc: any) => {
+                data.subagentToolCalls!.push({
+                  ...tc,
+                  subagentType: subagentType,
+                  parentToolCallId: toolCallId,
+                });
+              });
+            }
+            
             break;
           }
         } else if (message.type === "human") {
@@ -227,9 +250,15 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                   key={data.message.id}
                   message={data.message}
                   toolCalls={data.toolCalls}
+                  subagentToolCalls={data.subagentToolCalls || []}
                   showAvatar={data.showAvatar}
                   onSelectSubAgent={onSelectSubAgent}
                   selectedSubAgent={selectedSubAgent}
+                  onApprove={
+                    data.message.type === "ai"
+                      ? () => sendMessage("approve")
+                      : undefined
+                  }
                 />
               ))}
               {isLoading && (
