@@ -164,7 +164,7 @@ export function useChat(
       
       // Build config - include model selection only on first message
       const config: any = {
-        recursion_limit: 100,
+        recursion_limit: 200, // Increased to handle improvement loops for multiple sections
       };
       
       // Only pass model selection on first message

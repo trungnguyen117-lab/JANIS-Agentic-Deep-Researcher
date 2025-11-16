@@ -126,43 +126,100 @@ def setup_openlit():
             def export(self, spans):
                 """Export spans and extract token usage."""
                 # Process spans silently - no JSON logging
-                for span in spans:
-                    # Extract token usage from span attributes
-                    attrs = dict(span.attributes) if span.attributes else {}
+                # CRITICAL: Suppress any stdout/stderr output to prevent JSON span printing
+                import sys
+                from io import StringIO
+                
+                # Temporarily suppress stdout/stderr to prevent any JSON printing
+                old_stdout = sys.stdout
+                old_stderr = sys.stderr
+                try:
+                    sys.stdout = StringIO()
+                    sys.stderr = StringIO()
                     
-                    # OpenLIT uses specific attribute names for token usage
-                    input_tokens = (
-                        attrs.get("gen_ai.usage.input_tokens") or
-                        attrs.get("llm.usage.input_tokens") or
-                        attrs.get("input_tokens") or
-                        attrs.get("prompt_tokens") or
-                        0
-                    )
-                    output_tokens = (
-                        attrs.get("gen_ai.usage.output_tokens") or
-                        attrs.get("llm.usage.output_tokens") or
-                        attrs.get("output_tokens") or
-                        attrs.get("completion_tokens") or
-                        0
-                    )
-                    total_tokens = (
-                        attrs.get("gen_ai.usage.total_tokens") or
-                        attrs.get("llm.usage.total_tokens") or
-                        attrs.get("total_tokens") or
-                        (input_tokens + output_tokens) or
-                        0
-                    )
-                    model = (
-                        attrs.get("gen_ai.request.model") or
-                        attrs.get("llm.request.model") or
-                        attrs.get("model") or
-                        "unknown"
-                    )
+                    # Understand OpenLIT span structure:
+                    # - Each span represents either an individual LLM call or an aggregation
+                    # - Parent spans may aggregate child spans' token usage
+                    # - We need to identify which spans are actual LLM API calls vs aggregations
                     
-                    # Check if this is an LLM-related span
-                    is_llm_span = span.name and ("llm" in span.name.lower() or "chat" in span.name.lower() or "openai" in span.name.lower() or "gen_ai" in span.name.lower())
+                    # Build parent-child relationships to identify leaf spans
+                    span_children_map = {}
+                    for span in spans:
+                        span_id = span.context.span_id if hasattr(span.context, 'span_id') else None
+                        if span_id:
+                            span_children_map[span_id] = []
                     
-                    if is_llm_span:
+                    # Build parent-child relationships
+                    for span in spans:
+                        span_id = span.context.span_id if hasattr(span.context, 'span_id') else None
+                        if span_id and span.parent and hasattr(span.parent, 'span_id') and span.parent.span_id:
+                            parent_id = span.parent.span_id
+                            if parent_id in span_children_map:
+                                span_children_map[parent_id].append(span_id)
+                    
+                    # Identify parent spans (spans that have children)
+                    parent_span_ids = {span_id for span_id, children in span_children_map.items() if children}
+                    
+                    # Track processed spans to prevent double-counting
+                    processed_span_ids = set()
+                    
+                    for span in spans:
+                        # Extract token usage from span attributes
+                        attrs = dict(span.attributes) if span.attributes else {}
+                        
+                        span_id = span.context.span_id if hasattr(span.context, 'span_id') else None
+                        
+                        # Skip if already processed (prevent double-counting)
+                        if span_id and span_id in processed_span_ids:
+                            continue
+                        
+                        # Skip parent spans - they may aggregate child token usage
+                        # Only count leaf spans (spans without children) which are actual LLM calls
+                        if span_id and span_id in parent_span_ids:
+                            continue
+                        
+                        # OpenLIT uses specific attribute names for token usage
+                        input_tokens = (
+                            attrs.get("gen_ai.usage.input_tokens") or
+                            attrs.get("llm.usage.input_tokens") or
+                            attrs.get("input_tokens") or
+                            attrs.get("prompt_tokens") or
+                            0
+                        )
+                        output_tokens = (
+                            attrs.get("gen_ai.usage.output_tokens") or
+                            attrs.get("llm.usage.output_tokens") or
+                            attrs.get("output_tokens") or
+                            attrs.get("completion_tokens") or
+                            0
+                        )
+                        total_tokens = (
+                            attrs.get("gen_ai.usage.total_tokens") or
+                            attrs.get("llm.usage.total_tokens") or
+                            attrs.get("total_tokens") or
+                            (input_tokens + output_tokens) or
+                            0
+                        )
+                        model = (
+                            attrs.get("gen_ai.request.model") or
+                            attrs.get("llm.request.model") or
+                            attrs.get("model") or
+                            "unknown"
+                        )
+                        
+                        # Check if this span has LLM-related attributes
+                        # OpenLIT adds gen_ai.* or llm.* attributes to LLM-related spans
+                        has_llm_attrs = (
+                            "gen_ai.usage.input_tokens" in attrs or
+                            "llm.usage.input_tokens" in attrs or
+                            "gen_ai.request.model" in attrs or
+                            "llm.request.model" in attrs
+                        )
+                        
+                        if not has_llm_attrs:
+                            # No LLM attributes - skip this span
+                            continue
+                        
                         # Check for finish_reasons to identify tool calls
                         finish_reasons = attrs.get("gen_ai.response.finish_reasons") or attrs.get("llm.response.finish_reasons")
                         is_tool_call = False
@@ -183,46 +240,82 @@ def setup_openlit():
                         else:
                             reasoning_tokens = 0
                         
-                        # Determine if this is an actual LLM call
-                        is_actual_llm_call = False
-                        if output_tokens > 0 and total_tokens > 0:
-                            is_actual_llm_call = True
-                        elif is_tool_call and input_tokens > 0:
-                            is_actual_llm_call = True
-                            if output_tokens == 0 and total_tokens > input_tokens:
-                                output_tokens = total_tokens - input_tokens
-                        elif has_tool_info and input_tokens > 0:
-                            is_actual_llm_call = True
-                            if output_tokens == 0 and total_tokens > input_tokens:
-                                output_tokens = total_tokens - input_tokens
-                        elif input_tokens > 0 and total_tokens > 0 and total_tokens > input_tokens:
-                            is_actual_llm_call = True
+                        # Determine if this span represents an actual LLM API call
+                        # OpenLIT attributes should contain the actual token counts for this specific call
+                        # If this is a leaf span (no children), it's an actual LLM call
+                        # If it has children, it's an aggregation span and we should skip it
+                        
+                        # Check if we have valid token usage data
+                        has_token_data = (
+                            (input_tokens > 0 or output_tokens > 0) and
+                            total_tokens > 0
+                        )
+                        
+                        if not has_token_data:
+                            # No token data - skip this span
+                            continue
+                        
+                        # For tool calls, output_tokens might be 0, but we can calculate from total
+                        if is_tool_call and output_tokens == 0 and total_tokens > input_tokens:
                             output_tokens = total_tokens - input_tokens
                         
-                        if is_actual_llm_call:
-                            # Calculate cost
-                            cost = calculate_custom_cost(model, input_tokens, output_tokens) or 0.0
+                        # For spans with input and total but no explicit output, calculate output
+                        if output_tokens == 0 and total_tokens > input_tokens:
+                            output_tokens = total_tokens - input_tokens
+                        
+                        # Only process if we have meaningful token counts
+                        if input_tokens > 0 or output_tokens > 0:
+                            # Mark as processed to prevent double-counting
+                            if span_id:
+                                processed_span_ids.add(span_id)
                             
-                            # Get total tokens from client token usage (more accurate)
+                            # Understand OpenLIT's token counting:
+                            # - gen_ai.usage.input_tokens / output_tokens: tokens for THIS specific span
+                            # - gen_ai.client.token.usage: may be aggregated across multiple spans
+                            # We want to use the span-specific counts, not aggregated client totals
+                            
+                            # Use the span's individual token counts (gen_ai.usage.*)
+                            # These should represent the actual tokens for this specific LLM call
+                            span_total_tokens = input_tokens + output_tokens
+                            
+                            # Check if client token usage exists and if it matches the span's usage
+                            # If client usage is much higher, it's likely aggregated - don't use it
                             client_total_tokens = (
                                 attrs.get("gen_ai.client.token.usage") or
                                 attrs.get("llm.client.token.usage") or
-                                total_tokens
+                                0
                             )
+                            
+                            # Use span's individual token counts as the source of truth
+                            # Only use client_total_tokens if it's close to our calculated total
+                            # (within reasonable margin, suggesting it's for this span, not aggregated)
+                            if client_total_tokens > 0 and abs(client_total_tokens - span_total_tokens) < span_total_tokens * 0.1:
+                                # Client total is close to span total - likely for this span
+                                final_total_tokens = client_total_tokens
+                            else:
+                                # Use calculated total from span's individual counts
+                                final_total_tokens = span_total_tokens
+                            
+                            # Calculate cost using the span's individual token counts
+                            cost = calculate_custom_cost(model, input_tokens, output_tokens) or 0.0
                             
                             # Calculate completion tokens (output - reasoning)
                             completion_tokens = max(0, output_tokens - reasoning_tokens)
                             
-                            # Store token usage in thread-local storage for middleware to pick up
+                            # Store token usage - using individual span's counts, not aggregated totals
                             add_token_usage_from_openlit(
                                 input_tokens=input_tokens,
                                 output_tokens=output_tokens,
                                 completion_tokens=completion_tokens,
                                 reasoning_tokens=reasoning_tokens,
-                                total_tokens=client_total_tokens,
+                                total_tokens=final_total_tokens,
                                 cost=cost,
                                 model=model,
                             )
+                finally:
+                    # Restore stdout/stderr
+                    sys.stdout = old_stdout
+                    sys.stderr = old_stderr
                 
                 return SpanExportResult.SUCCESS
             
@@ -264,11 +357,28 @@ def setup_openlit():
         # IMPORTANT: We set the tracer provider BEFORE OpenLIT init, so OpenLIT will use our provider
         # and won't add its own console exporter
         import openlit
-        openlit.init(
-            capture_message_content=False,
-            # Don't let OpenLIT set up its own tracer provider - we've already set one
-            # This prevents OpenLIT from adding a console exporter
-        )
+        import sys
+        from io import StringIO
+        
+        # Temporarily suppress stdout/stderr during OpenLIT init to prevent any console output
+        # OpenLIT might print spans to console if not configured properly
+        old_stdout = sys.stdout
+        old_stderr = sys.stderr
+        try:
+            # Redirect stdout/stderr to suppress any console output from OpenLIT
+            sys.stdout = StringIO()
+            sys.stderr = StringIO()
+            
+            openlit.init(
+                capture_message_content=False,
+                disable_batch=True,  # Disable batch processing to prevent console output
+                # Don't let OpenLIT set up its own tracer provider - we've already set one
+                # This prevents OpenLIT from adding a console exporter
+            )
+        finally:
+            # Restore stdout/stderr
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
         
         # Ensure OpenLIT uses our provider (it should already, but double-check)
         current_provider = trace.get_tracer_provider()
