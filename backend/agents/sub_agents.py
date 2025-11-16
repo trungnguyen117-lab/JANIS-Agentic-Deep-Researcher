@@ -5,6 +5,8 @@ from ..tools import (
     think_tool,
     conduct_research,
     research_complete,
+    validate_json,
+    count_text,
 )
 from ..prompts import (
     critique_prompt,
@@ -13,6 +15,7 @@ from ..prompts import (
     literature_review_agent_prompt,
     individual_researcher_prompt,
     results_interpretation_agent_prompt,
+    section_writer_prompt,
 )
 
 
@@ -33,8 +36,9 @@ def create_sub_agents():
     # Phase 2: Planning Agent (HUMAN APPROVAL REQUIRED)
     planning_agent = {
         "name": "planning-agent",
-        "description": "Creates comprehensive research plans with human approval. Use this agent for Phase 2 (Plan Formulation). This agent generates research brief, uses collaborative planning, extracts plan using ```PLAN marker, presents plan to user, and waits for approval. This is the ONLY phase requiring human approval. Saves approved plan to research_plan.md.",
+        "description": "Creates comprehensive research plans with human approval. Use this agent for Phase 2 (Plan Formulation). This agent generates research brief, uses collaborative planning, creates structured outline, extracts plan using ```PLAN marker, extracts outline using ```OUTLINE marker, **MUST save outline to /plan_outline.json using write_file tool**, validates JSON using validate_json tool, presents plan to user, and waits for approval. This is the ONLY phase requiring human approval. After approval, saves plan to research_plan.md.",
         "system_prompt": planning_agent_prompt,
+        "tools": [validate_json],
     }
 
     # Phase 3: Individual Researcher Agent
@@ -62,8 +66,16 @@ def create_sub_agents():
     # Phase 6: Critique Agent
     critique_sub_agent = {
         "name": "critique-agent",
-        "description": "Reviews research documents with multiple reviewer perspectives and structured scoring. Use this agent for Phase 6 (Report Refinement). The agent provides structured critique with scores (1-10 scale), uses three reviewer perspectives (harsh but fair, critical but fair, open-minded), identifies improvement areas, and checks if document is comprehensive enough. This phase is AUTONOMOUS.",
+        "description": "Reviews research documents or sections with multiple reviewer perspectives and structured scoring. Use this agent for Phase 5 (Section Critique) to critique individual sections, or Phase 6 (Report Refinement) to critique the full document. The agent provides structured critique with scores (1-10 scale), uses three reviewer perspectives (harsh but fair, critical but fair, open-minded), identifies improvement areas, checks if document/section is comprehensive enough, and uses count_text tool to verify section length matches estimatedDepth. This phase is AUTONOMOUS.",
         "system_prompt": critique_prompt,
+        "tools": [count_text],
+    }
+
+    # Section Writer Agent (for parallel section writing)
+    section_writer_agent = {
+        "name": "section-writer-agent",
+        "description": "Writes individual sections of the research document based on the approved outline. Use this agent for Phase 4 (Section Writing) to write sections in parallel. The agent reads the section assignment, gathers relevant research findings, writes a comprehensive section (2-3 pages by default, unless user requests different length), includes inline citations, and saves to section_[section_id].md. This phase is AUTONOMOUS.",
+        "system_prompt": section_writer_prompt,
     }
 
     return [
@@ -73,4 +85,5 @@ def create_sub_agents():
         results_interpretation_agent,
         report_writer_agent,
         critique_sub_agent,
+        section_writer_agent,
     ]

@@ -21,6 +21,9 @@ from .backends.protocol import BackendFactory, BackendProtocol
 from .middleware.filesystem import FilesystemMiddleware
 from .middleware.patch_tool_calls import PatchToolCallsMiddleware
 from .middleware.subagents import CompiledSubAgent, SubAgent, SubAgentMiddleware
+from .middleware.token_usage_state import TokenUsageStateMiddleware
+from .middleware.models_state import ModelsStateMiddleware
+from .middleware.model_selector_middleware import ModelSelectorMiddleware
 
 BASE_AGENT_PROMPT = "In order to complete the objective that the user asks of you, you have access to a number of standard tools."
 
@@ -95,6 +98,9 @@ def create_deep_agent(
         model = get_default_model()
 
     deepagent_middleware = [
+        ModelsStateMiddleware(),  # Add available models list to state
+        ModelSelectorMiddleware(),  # Handle model selection from frontend (first message only)
+        TokenUsageStateMiddleware(),  # Track token usage in LangGraph state
         TodoListMiddleware(),
         FilesystemMiddleware(backend=backend),
         SubAgentMiddleware(

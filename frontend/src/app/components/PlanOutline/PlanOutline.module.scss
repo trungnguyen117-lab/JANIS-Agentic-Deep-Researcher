@@ -1,0 +1,327 @@
+@use "../../styles/variables" as *;
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-md;
+  padding: $spacing-lg;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: $radius-lg;
+  margin: $spacing-md 0;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0; // Allow flex shrinking
+  overflow: hidden; // Prevent content from overflowing
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.headerActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.addButton,
+.saveButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sectionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sectionCard {
+  border: 1px solid var(--color-border);
+  border-radius: $radius-md;
+  padding: $spacing-lg;
+  background: var(--color-background);
+  transition: all 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0; // Allow flex shrinking
+  
+  &:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: var(--color-primary);
+  }
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.sectionNumber {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  font-weight: $font-weight-semibold;
+  font-size: $font-size-sm;
+  flex-shrink: 0;
+}
+
+.sectionActions {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.moveButton,
+.editButton,
+.deleteButton {
+  padding: 0.25rem;
+  min-width: auto;
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.sectionContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sectionTitle {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  margin: 0 0 $spacing-xs 0;
+  color: var(--color-text-primary);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.sectionDescription {
+  font-size: $font-size-sm;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.6;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.sectionMeta {
+  display: flex;
+  gap: $spacing-sm;
+  font-size: $font-size-xs;
+  color: var(--color-text-secondary);
+  margin-top: $spacing-xs;
+}
+
+.metaLabel {
+  font-weight: $font-weight-medium;
+}
+
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.editInput {
+  width: 100%;
+}
+
+.editTextarea {
+  width: 100%;
+  padding: $spacing-sm;
+  border: 1px solid var(--color-border);
+  border-radius: $radius-md;
+  font-size: $font-size-sm;
+  font-family: inherit;
+  resize: vertical;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.editActions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.metadata {
+  display: flex;
+  gap: $spacing-md;
+  padding-top: $spacing-md;
+  border-top: 1px solid var(--color-border);
+  font-size: $font-size-sm;
+  color: var(--color-text-secondary);
+}
+
+.sectionHeaderContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.sectionTitleContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.subsectionsBadge {
+  font-size: $font-size-xs;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-secondary, rgba(0, 0, 0, 0.05));
+  padding: 0.125rem 0.375rem;
+  border-radius: $radius-sm;
+  white-space: nowrap;
+}
+
+.expandButton {
+  padding: 0.25rem;
+  min-width: auto;
+  font-size: 0.75rem;
+}
+
+.subsectionsContainer {
+  margin-top: $spacing-md;
+  padding-top: $spacing-md;
+  border-top: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.1));
+}
+
+.subsectionsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $spacing-sm;
+}
+
+.subsectionsLabel {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+  color: var(--color-text-secondary);
+}
+
+.addSubsectionButton {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: $font-size-xs;
+  padding: 0.25rem 0.5rem;
+}
+
+.subsectionsList {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-sm;
+}
+
+.subsectionCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: $spacing-sm;
+  padding: $spacing-sm;
+  background: var(--color-surface-secondary, rgba(0, 0, 0, 0.02));
+  border: 1px solid var(--color-border-light, rgba(0, 0, 0, 0.1));
+  border-radius: $radius-sm;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: var(--color-surface-hover, rgba(0, 0, 0, 0.04));
+    border-color: var(--color-primary);
+  }
+}
+
+.subsectionContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.subsectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.subsectionNumber {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: var(--color-primary-light, rgba(0, 0, 0, 0.1));
+  color: var(--color-text-primary);
+  font-weight: $font-weight-medium;
+  font-size: $font-size-xs;
+  flex-shrink: 0;
+}
+
+.subsectionTitle {
+  font-size: $font-size-sm;
+  font-weight: $font-weight-semibold;
+  margin: 0;
+  color: var(--color-text-primary);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.subsectionDescription {
+  font-size: $font-size-xs;
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+}
+
+.subsectionActions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.subsectionEditForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+

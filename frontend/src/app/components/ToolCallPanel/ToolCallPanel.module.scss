@@ -29,10 +29,10 @@
   flex: 1;
 }
 
-.agentIcon {
+.toolIcon {
   width: 32px;
   height: 32px;
-  color: var(--color-secondary);
+  color: var(--color-primary);
   flex-shrink: 0;
 }
 
@@ -40,6 +40,13 @@
   font-size: $font-size-lg;
   font-weight: $font-weight-semibold;
   margin: 0 0 $spacing-xs 0;
+  word-break: break-word;
+}
+
+.subagentType {
+  font-size: $font-size-xs;
+  color: var(--color-text-secondary);
+  margin-bottom: $spacing-xs;
 }
 
 .status {
@@ -128,6 +135,20 @@
   }
 }
 
+.codeBlock {
+  margin: 0;
+  padding: $spacing-sm;
+  background-color: var(--color-background);
+  border-radius: $radius-sm;
+  font-size: $font-size-xs;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--color-text-primary);
+  line-height: 1.5;
+}
+
 .statusCompleted {
   color: var(--color-success);
 }
@@ -141,7 +162,7 @@
   animation: spin 1s linear infinite;
 }
 
-.statusPending {
+.statusDefault {
   color: var(--color-text-tertiary);
 }
 
@@ -150,18 +171,6 @@
 
   &:hover {
     background-color: var(--color-border-light);
-  }
-}
-
-.description {
-  padding: $spacing-md;
-  border-bottom: 1px solid var(--color-border-light);
-
-  p {
-    margin: 0;
-    font-size: $font-size-sm;
-    color: var(--color-text-secondary);
-    line-height: $line-height-relaxed;
   }
 }
 
@@ -174,66 +183,10 @@
   padding: $spacing-lg;
 }
 
-.emptyState {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-  color: var(--color-text-tertiary);
-
-  p {
-    margin: 0;
-    font-size: $font-size-sm;
-  }
-}
-
-.toolCallsContainer {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-sm;
-}
-
-.messagesList {
-  padding: $spacing-md;
-}
-
-.message {
-  margin-bottom: $spacing-lg;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-
-  &.user {
-    .messageHeader {
-      color: #2f6868;
-    }
-  }
-
-  &.assistant {
-    .messageHeader {
-      color: var(--color-secondary);
-    }
-  }
-}
-
-.messageHeader {
-  margin-bottom: $spacing-sm;
-}
-
-.role {
-  font-size: $font-size-xs;
-  font-weight: $font-weight-semibold;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.messageContent {
-  padding: $spacing-md;
-  background-color: var(--color-surface);
-  border-radius: $radius-md;
-  font-size: $font-size-sm;
-  line-height: $line-height-relaxed;
+.pendingMessage {
+  color: var(--color-text-secondary);
+  font-style: italic;
+  margin: 0;
 }
 
 @keyframes spin {
@@ -244,3 +197,4 @@
     transform: rotate(360deg);
   }
 }
+

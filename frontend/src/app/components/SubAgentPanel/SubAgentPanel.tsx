@@ -5,15 +5,17 @@ import { X, Bot, CheckCircle, AlertCircle, Clock, Loader } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MarkdownContent } from "../MarkdownContent/MarkdownContent";
-import type { SubAgent } from "../../types/types";
+import { ToolCallBox } from "../ToolCallBox/ToolCallBox";
+import type { SubAgent, ToolCall } from "../../types/types";
 import styles from "./SubAgentPanel.module.scss";
 
 interface SubAgentPanelProps {
   subAgent: SubAgent;
+  toolCalls?: ToolCall[]; // Tool calls made by this sub-agent
   onClose: () => void;
 }
 
-const SubAgentPanelComponent = ({ subAgent, onClose }: SubAgentPanelProps) => {
+const SubAgentPanelComponent = ({ subAgent, toolCalls = [], onClose }: SubAgentPanelProps) => {
   const statusIcon = useMemo(() => {
     switch (subAgent.status) {
       case "completed":
@@ -77,6 +79,16 @@ const SubAgentPanelComponent = ({ subAgent, onClose }: SubAgentPanelProps) => {
               />
             </div>
           </div>
+          {toolCalls.length > 0 && (
+            <div className={styles.section}>
+              <h4 className={styles.sectionTitle}>Tool Calls ({toolCalls.length})</h4>
+              <div className={styles.toolCallsContainer}>
+                {toolCalls.map((toolCall) => (
+                  <ToolCallBox key={toolCall.id} toolCall={toolCall} />
+                ))}
+              </div>
+            </div>
+          )}
           {subAgent.output && (
             <div className={styles.section}>
               <h4 className={styles.sectionTitle}>Output</h4>
@@ -106,9 +118,13 @@ export const SubAgentPanel = React.memo(
     const outputEqual =
       JSON.stringify(prevProps.subAgent.output) ===
       JSON.stringify(nextProps.subAgent.output);
+    const toolCallsEqual =
+      JSON.stringify(prevProps.toolCalls) ===
+      JSON.stringify(nextProps.toolCalls);
     return (
       inputEqual &&
       outputEqual &&
+      toolCallsEqual &&
       prevProps.subAgent.status === nextProps.subAgent.status &&
       prevProps.subAgent.id === nextProps.subAgent.id &&
       prevProps.onClose === nextProps.onClose

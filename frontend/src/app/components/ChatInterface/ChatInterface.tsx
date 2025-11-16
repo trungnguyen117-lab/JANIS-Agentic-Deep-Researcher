@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Send, Bot, LoaderCircle, SquarePen, History, X } from "lucide-react";
 import { ChatMessage } from "../ChatMessage/ChatMessage";
 import { ThreadHistorySidebar } from "../ThreadHistorySidebar/ThreadHistorySidebar";
+import { ModelSelector } from "../ModelSelector/ModelSelector";
 import type { SubAgent, TodoItem, ToolCall } from "../../types/types";
 import { useChat } from "../../hooks/useChat";
 import styles from "./ChatInterface.module.scss";
@@ -30,6 +31,10 @@ interface ChatInterfaceProps {
   onFilesUpdate: (files: Record<string, string>) => void;
   onNewThread: () => void;
   isLoadingThreadState: boolean;
+  tokenUsage?: { input: number; output: number; completion: number; reasoning: number; total: number; cost?: number };
+  availableModels?: Array<{ name: string; input_price_per_million: number; output_price_per_million: number }>;
+  onTokenUsageUpdate?: (usage: { input: number; output: number; completion: number; reasoning: number; total: number; cost?: number }) => void;
+  onModelsUpdate?: (models: Array<{ name: string; input_price_per_million: number; output_price_per_million: number }>) => void;
 }
 
 export const ChatInterface = React.memo<ChatInterfaceProps>(
@@ -42,9 +47,14 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     onFilesUpdate,
     onNewThread,
     isLoadingThreadState,
+    tokenUsage,
+    availableModels,
+    onTokenUsageUpdate,
+    onModelsUpdate,
   }) => {
     const [input, setInput] = useState("");
     const [isThreadHistoryOpen, setIsThreadHistoryOpen] = useState(false);
+    const [selectedModel, setSelectedModel] = useState<string>("gpt-4o");
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const { messages, isLoading, sendMessage, stopStream } = useChat(
@@ -52,6 +62,9 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       setThreadId,
       onTodosUpdate,
       onFilesUpdate,
+      onTokenUsageUpdate,
+      onModelsUpdate,
+      selectedModel, // Pass selected model to useChat
     );
 
     useEffect(() => {
@@ -272,30 +285,38 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           </div>
         </div>
         <form onSubmit={handleSubmit} className={styles.inputForm}>
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-            disabled={isLoading}
-            className={styles.input}
-          />
-          {isLoading ? (
-            <Button
-              type="button"
-              onClick={stopStream}
-              className={styles.stopButton}
-            >
-              Stop
-            </Button>
-          ) : (
-            <Button
-              type="submit"
-              disabled={!input.trim()}
-              className={styles.sendButton}
-            >
-              <Send size={16} />
-            </Button>
-          )}
+          <div className={styles.inputRow}>
+            <ModelSelector
+              tokenUsage={tokenUsage}
+              availableModels={availableModels}
+              onModelChange={setSelectedModel}
+              disabled={messages.length > 0} // Disable after first message
+            />
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your message..."
+              disabled={isLoading}
+              className={styles.input}
+            />
+            {isLoading ? (
+              <Button
+                type="button"
+                onClick={stopStream}
+                className={styles.stopButton}
+              >
+                Stop
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={!input.trim()}
+                className={styles.sendButton}
+              >
+                <Send size={16} />
+              </Button>
+            )}
+          </div>
         </form>
       </div>
     );

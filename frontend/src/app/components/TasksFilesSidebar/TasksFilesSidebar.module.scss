@@ -205,3 +205,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+// Outline Styles
+.outlineWrapper {
+  padding: $spacing-md;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  
+  // Ensure outline component fits within sidebar
+  > * {
+    max-width: 100%;
+    overflow: hidden;
+  }
+}

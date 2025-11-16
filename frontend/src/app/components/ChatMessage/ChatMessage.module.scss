@@ -94,6 +94,23 @@
   flex-direction: column;
   width: fit-content;
   max-width: 100%;
+  gap: $spacing-xs;
+}
+
+.toolCallsHeader {
+  font-size: $font-size-sm;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: $spacing-xs;
+}
+
+.toolCallItem {
+  cursor: pointer;
+  transition: opacity $transition-base;
+
+  &:hover {
+    opacity: 0.8;
+  }
 }
 
 .subAgents {
@@ -167,4 +184,9 @@
   &:active {
     background-color: var(--color-primary-active);
   }
+}
+
+.outlineContainer {
+  width: 100%;
+  max-width: 100%;
 }

@@ -1,6 +1,7 @@
 """Main entry point for the research agent system."""
 
 from dotenv import load_dotenv
+import os
 
 # Import from local deepagents module
 import sys
@@ -15,24 +16,69 @@ if str(_project_root) not in sys.path:
 from backend.deepagents import create_deep_agent
 
 # Import other modules using absolute imports from backend
-from backend.config import get_model
-from backend.tools import arxiv_search
+from backend.config import get_model, AVAILABLE_MODELS
+from backend.config.langfuse import get_langfuse_handler
+from backend.config.opentelemetry_tracker import setup_opentelemetry_tracking
+from backend.tools import arxiv_search, aggregate_document
 from backend.prompts import orchestrator_instructions
 from backend.agents import create_sub_agents
 
 # Load environment variables
 load_dotenv()
 
-# Initialize model
-model = get_model()
+# Initialize OpenTelemetry HTTP interception for accurate token tracking
+# This intercepts at the HTTP level to get actual per-call token usage
+# Must be done before importing LangChain models
+# setup_opentelemetry_tracking()  # Disabled for now, using OpenLIT with better filtering
 
-# Create sub-agents
-sub_agents = create_sub_agents()
+# Initialize OpenLIT for automatic token tracking (must be done before importing LangChain models)
+# OpenLIT will automatically instrument LangChain and track token usage
+from backend.config.openlit_setup import setup_openlit
+setup_openlit()
 
-# Create the main orchestrator agent
-agent = create_deep_agent(
-    model=model,
-    tools=[arxiv_search],  # Orchestrator may need basic tools for coordination
-    system_prompt=orchestrator_instructions,
-    subagents=sub_agents
-)
+
+def create_agent(model_name: str | None = None):
+    """Create the main orchestrator agent with specified model.
+    
+    Args:
+        model_name: Name of the model to use. If None, uses default from environment.
+    
+    Returns:
+        The configured deep agent
+    """
+    # Get model name from parameter or environment
+    if model_name is None:
+        model_name = os.environ.get("MODEL_NAME", "gpt-4o-mini")
+    
+    # Initialize model
+    model = get_model(model_name)
+    
+    # Create sub-agents
+    sub_agents = create_sub_agents()
+    
+    # Get Langfuse callback handler if configured (optional)
+    langfuse_handler = get_langfuse_handler()
+    
+    # Collect callbacks (OpenLIT tracks token usage automatically via spans)
+    callbacks = []
+    if langfuse_handler:
+        callbacks.append(langfuse_handler)
+    
+    # Create the main orchestrator agent
+    agent = create_deep_agent(
+        model=model,
+        tools=[arxiv_search, aggregate_document],  # Orchestrator tools: basic coordination + document aggregation
+        system_prompt=orchestrator_instructions,
+        subagents=sub_agents
+    )
+    
+    # Add callbacks to default config (if any)
+    if callbacks:
+        agent = agent.with_config({"callbacks": callbacks})
+    
+    return agent
+
+
+# Create default agent with model from environment
+# This is used when LangGraph CLI loads the agent
+agent = create_agent()

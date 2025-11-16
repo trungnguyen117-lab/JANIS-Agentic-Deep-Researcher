@@ -162,13 +162,30 @@
   animation: spin 1s linear infinite;
 }
 
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  width: 100%;
+}
+
 .inputForm {
   display: flex;
   gap: $spacing-sm;
+  align-items: center;
   padding: $spacing-md $spacing-lg;
   border-top: 1px solid var(--color-border);
   background-color: var(--color-background);
   flex-shrink: 0;
+}
+
+.inputLeft {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding-right: $spacing-sm;
+  border-right: 1px solid var(--color-border);
+  margin-right: $spacing-sm;
 }
 
 .input {

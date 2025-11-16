@@ -36,3 +36,29 @@ export interface Thread {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface SubSection {
+  id: string;
+  title: string;
+  description: string;
+  order: number;
+}
+
+export interface Section {
+  id: string;
+  title: string;
+  description: string;
+  order: number;
+  researchTasks?: string[];
+  estimatedDepth?: string;
+  subsections?: SubSection[];
+}
+
+export interface PlanOutline {
+  sections: Section[];
+  metadata?: {
+    totalSections?: number;
+    estimatedTotalPages?: number;
+    [key: string]: any;
+  };
+}

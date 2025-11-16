@@ -14,20 +14,33 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import type { TodoItem, FileItem } from "../../types/types";
+import { PlanOutline as PlanOutlineComponent } from "../PlanOutline/PlanOutline";
+import type { TodoItem, FileItem, PlanOutline } from "../../types/types";
 import { extractFileContent } from "../../utils/fileContentUtils";
 import styles from "./TasksFilesSidebar.module.scss";
 
 interface TasksFilesSidebarProps {
   todos: TodoItem[];
   files: Record<string, string>;
+  outline?: PlanOutline | null;
   onFileClick: (file: FileItem) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  onOutlineSave?: (outline: PlanOutline) => void;
 }
 
 export const TasksFilesSidebar = React.memo<TasksFilesSidebarProps>(
-  ({ todos, files, onFileClick, collapsed, onToggleCollapse }) => {
+  ({ todos, files, outline, onFileClick, collapsed, onToggleCollapse, onOutlineSave }) => {
+    // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
+    // This ensures hooks are always called in the same order
+    
+    // Debug logging
+    React.useEffect(() => {
+      console.log("[TasksFilesSidebar] Outline prop:", outline);
+      console.log("[TasksFilesSidebar] Outline sections:", outline?.sections?.length);
+      console.log("[TasksFilesSidebar] Files available:", Object.keys(files));
+    }, [outline, files]);
+    
     const getStatusIcon = useCallback((status: TodoItem["status"]) => {
       switch (status) {
         case "completed":
@@ -47,6 +60,19 @@ export const TasksFilesSidebar = React.memo<TasksFilesSidebarProps>(
       };
     }, [todos]);
 
+    // Memoize callbacks for outline component - must be at top level (Rules of Hooks)
+    const handleOutlineChange = useCallback(() => {
+      // Update is handled internally by PlanOutline component
+      // No need to propagate changes until save
+    }, []);
+
+    const handleOutlineSave = useCallback((savedOutline: PlanOutline) => {
+      if (onOutlineSave) {
+        onOutlineSave(savedOutline);
+      }
+    }, [onOutlineSave]);
+
+    // Early return AFTER all hooks are called
     if (collapsed) {
       return (
         <div className={styles.sidebarCollapsed}>
@@ -82,6 +108,9 @@ export const TasksFilesSidebar = React.memo<TasksFilesSidebarProps>(
             </TabsTrigger>
             <TabsTrigger value="files" className={styles.tabTrigger}>
               Files ({Object.keys(files).length})
+            </TabsTrigger>
+            <TabsTrigger value="outline" className={styles.tabTrigger}>
+              Outline {outline && outline.sections ? `(${outline.sections.length})` : ''}
             </TabsTrigger>
           </TabsList>
 
@@ -167,6 +196,32 @@ export const TasksFilesSidebar = React.memo<TasksFilesSidebarProps>(
                 </div>
               )}
             </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="outline" className={styles.tabContent}>
+            {outline && outline.sections && outline.sections.length > 0 ? (
+              <ScrollArea className={styles.scrollArea}>
+                <div className={styles.outlineWrapper}>
+                  <PlanOutlineComponent
+                    outline={outline}
+                    editable={true}
+                    onOutlineChange={handleOutlineChange}
+                    onSave={handleOutlineSave}
+                  />
+                </div>
+              </ScrollArea>
+            ) : (
+              <ScrollArea className={styles.scrollArea}>
+                <div className={styles.emptyState}>
+                  <p>No outline yet</p>
+                  {outline && (
+                    <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+                      Debug: Outline exists but has {outline.sections?.length || 0} sections
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
+            )}
           </TabsContent>
         </Tabs>
       </div>

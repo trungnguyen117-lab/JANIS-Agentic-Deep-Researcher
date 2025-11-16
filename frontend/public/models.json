@@ -1,0 +1,198 @@
+{
+  "models": {
+    "gpt-5-2025-08-07": {
+      "name": "gpt-5-2025-08-07",
+      "input_price_per_million": 0.75,
+      "output_price_per_million": 6.0
+    },
+    "gpt-5-mini-2025-08-07": {
+      "name": "gpt-5-mini-2025-08-07",
+      "input_price_per_million": 0.15,
+      "output_price_per_million": 1.2
+    },
+    "gpt-5-nano": {
+      "name": "gpt-5-nano",
+      "input_price_per_million": 0.03,
+      "output_price_per_million": 0.24
+    },
+    "gpt-5-nano-2025-08-07": {
+      "name": "gpt-5-nano-2025-08-07",
+      "input_price_per_million": 0.03,
+      "output_price_per_million": 0.24
+    },
+    "gpt-5-pro": {
+      "name": "gpt-5-pro",
+      "input_price_per_million": 9.0,
+      "output_price_per_million": 72.0
+    },
+    "gpt-3.5-turbo": {
+      "name": "gpt-3.5-turbo",
+      "input_price_per_million": 0.3,
+      "output_price_per_million": 0.6
+    },
+    "gpt-3.5-turbo-0125": {
+      "name": "gpt-3.5-turbo-0125",
+      "input_price_per_million": 0.3,
+      "output_price_per_million": 0.6
+    },
+    "gpt-3.5-turbo-0301": {
+      "name": "gpt-3.5-turbo-0301",
+      "input_price_per_million": 4.5,
+      "output_price_per_million": 13.5
+    },
+    "gpt-3.5-turbo-0613": {
+      "name": "gpt-3.5-turbo-0613",
+      "input_price_per_million": 0.9,
+      "output_price_per_million": 1.8
+    },
+    "gpt-3.5-turbo-1106": {
+      "name": "gpt-3.5-turbo-1106",
+      "input_price_per_million": 0.6,
+      "output_price_per_million": 1.2
+    },
+    "gpt-4": {
+      "name": "gpt-4",
+      "input_price_per_million": 18.0,
+      "output_price_per_million": 36.0
+    },
+    "gpt-4-0125-preview": {
+      "name": "gpt-4-0125-preview",
+      "input_price_per_million": 6.0,
+      "output_price_per_million": 12.0
+    },
+    "gpt-4-0613": {
+      "name": "gpt-4-0613",
+      "input_price_per_million": 18.0,
+      "output_price_per_million": 36.0
+    },
+    "gpt-4-32K-0613": {
+      "name": "gpt-4-32K-0613",
+      "input_price_per_million": 36.0,
+      "output_price_per_million": 72.0
+    },
+    "gpt-4.1": {
+      "name": "gpt-4.1",
+      "input_price_per_million": 1.2,
+      "output_price_per_million": 4.8
+    },
+    "gpt-4.1-2025-04-14": {
+      "name": "gpt-4.1-2025-04-14",
+      "input_price_per_million": 1.2,
+      "output_price_per_million": 4.8
+    },
+    "gpt-4.1-nano": {
+      "name": "gpt-4.1-nano",
+      "input_price_per_million": 0.06,
+      "output_price_per_million": 0.24
+    },
+    "gpt-4.1-mini-2025-04-14": {
+      "name": "gpt-4.1-mini-2025-04-14",
+      "input_price_per_million": 0.24,
+      "output_price_per_million": 0.96
+    },
+    "gpt-4o": {
+      "name": "gpt-4o",
+      "input_price_per_million": 1.5,
+      "output_price_per_million": 6.0
+    },
+    "gpt-4o-mini": {
+      "name": "gpt-4o-mini",
+      "input_price_per_million": 0.09,
+      "output_price_per_million": 0.36
+    },
+    "o4-mini": {
+      "name": "o4-mini",
+      "input_price_per_million": 0.66,
+      "output_price_per_million": 2.64
+    },
+    "gemini-2.5-flash": {
+      "name": "gemini-2.5-flash",
+      "input_price_per_million": 0.18,
+      "output_price_per_million": 1.501
+    },
+    "gemini-2.5-flash-thinking": {
+      "name": "gemini-2.5-flash-thinking",
+      "input_price_per_million": 0.18,
+      "output_price_per_million": 1.501
+    },
+    "gemini-2.5-flash-nothinking": {
+      "name": "gemini-2.5-flash-nothinking",
+      "input_price_per_million": 0.18,
+      "output_price_per_million": 1.501
+    },
+    "gemini-2.5-pro": {
+      "name": "gemini-2.5-pro",
+      "input_price_per_million": 0.75,
+      "output_price_per_million": 6.0
+    },
+    "claude-haiku-4-5-20251001": {
+      "name": "claude-haiku-4-5-20251001",
+      "input_price_per_million": 1.0,
+      "output_price_per_million": 5.0
+    },
+    "claude-haiku-4-5-20251001-thinking": {
+      "name": "claude-haiku-4-5-20251001-thinking",
+      "input_price_per_million": 1.0,
+      "output_price_per_million": 5.0
+    },
+    "claude-3-5-haiku-20241022": {
+      "name": "claude-3-5-haiku-20241022",
+      "input_price_per_million": 0.8,
+      "output_price_per_million": 4.0
+    },
+    "qwen2.5-72b-instruct": {
+      "name": "qwen2.5-72b-instruct",
+      "input_price_per_million": 2.4,
+      "output_price_per_million": 7.2
+    },
+    "qwen2.5-7b-instruct": {
+      "name": "qwen2.5-7b-instruct",
+      "input_price_per_million": 0.3,
+      "output_price_per_million": 0.6
+    },
+    "qwen3-235b-a22b-think": {
+      "name": "qwen3-235b-a22b-think",
+      "input_price_per_million": 1.8,
+      "output_price_per_million": 7.2
+    },
+    "qwen3-30b-a3b": {
+      "name": "qwen3-30b-a3b",
+      "input_price_per_million": 0.45,
+      "output_price_per_million": 1.8
+    },
+    "llama-3.1-405b": {
+      "name": "llama-3.1-405b",
+      "input_price_per_million": 6.0,
+      "output_price_per_million": 12.0
+    },
+    "llama-3.1-405b-instruct": {
+      "name": "llama-3.1-405b-instruct",
+      "input_price_per_million": 6.0,
+      "output_price_per_million": 12.0
+    },
+    "llama-3.1-70b": {
+      "name": "llama-3.1-70b",
+      "input_price_per_million": 4.0,
+      "output_price_per_million": 8.0
+    },
+    "llama-3.1-70b-instruct": {
+      "name": "llama-3.1-70b-instruct",
+      "input_price_per_million": 4.0,
+      "output_price_per_million": 4.0
+    },
+    "llama-3.2-3b-instruct": {
+      "name": "llama-3.2-3b-instruct",
+      "input_price_per_million": 1.0,
+      "output_price_per_million": 0.5
+    },
+    "llama-2-13b": {
+      "name": "llama-2-13b",
+      "input_price_per_million": 2.0,
+      "output_price_per_million": 2.0
+    }
+  },
+  "default": {
+    "input_price_per_million": 1.0,
+    "output_price_per_million": 3.0
+  }
+}
