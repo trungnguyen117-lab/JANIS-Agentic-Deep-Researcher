@@ -35,6 +35,7 @@ interface ChatInterfaceProps {
   availableModels?: Array<{ name: string; input_price_per_million: number; output_price_per_million: number }>;
   onTokenUsageUpdate?: (usage: { input: number; output: number; completion: number; reasoning: number; total: number; cost?: number }) => void;
   onModelsUpdate?: (models: Array<{ name: string; input_price_per_million: number; output_price_per_million: number }>) => void;
+  onProcessedMessagesReady?: (processedMessages: any[]) => void; // Callback to pass processed messages to parent
 }
 
 export const ChatInterface = React.memo<ChatInterfaceProps>(
@@ -51,6 +52,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     availableModels,
     onTokenUsageUpdate,
     onModelsUpdate,
+    onProcessedMessagesReady,
   }) => {
     const [input, setInput] = useState("");
     const [isThreadHistoryOpen, setIsThreadHistoryOpen] = useState(false);
@@ -216,6 +218,21 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         };
       });
     }, [messages]);
+
+    // Pass processed messages to parent component
+    // Use a ref to track the last sent messages to prevent infinite loops
+    const lastSentMessagesRef = useRef<any[]>([]);
+    useEffect(() => {
+      if (onProcessedMessagesReady) {
+        // Only update if processedMessages actually changed
+        const currentMessagesStr = JSON.stringify(processedMessages);
+        const lastSentStr = JSON.stringify(lastSentMessagesRef.current);
+        if (currentMessagesStr !== lastSentStr) {
+          lastSentMessagesRef.current = processedMessages;
+          onProcessedMessagesReady(processedMessages);
+        }
+      }
+    }, [processedMessages, onProcessedMessagesReady]);
 
     return (
       <div className={styles.container}>

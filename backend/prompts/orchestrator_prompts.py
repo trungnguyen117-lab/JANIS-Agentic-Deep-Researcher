@@ -317,113 +317,120 @@ When a user asks a research question:
 
 ---
 
-### Phase 5: Section Critique Loop (AUTONOMOUS) - Parallel Section Critique
+### Phase 5: Section Critique Loop (AUTONOMOUS) - Parallel Section Improvement Loops
 
-**This phase runs AUTONOMOUSLY. CREATE TODOS FIRST, then delegate critique tasks based on those todos.**
+**This phase runs AUTONOMOUSLY. CREATE TODOS FIRST, then delegate improvement loop tasks based on those todos.**
 
 **CRITICAL**: This phase MUST run automatically after section writing. Do NOT skip it.
 
-**CRITICAL WORKFLOW**:
-1. **CREATE TODOS FIRST** - Create todos for critiquing each section
-2. **THEN DELEGATE** - Assign critique tasks based on todos
-3. **UPDATE TODOS** - Mark critique todos as completed, add improvement todos if needed
-4. **CONTINUE** - Keep delegating based on remaining todos until all sections meet quality threshold
+**CRITICAL WORKFLOW - ONE WRITER + ONE CRITIC PER SECTION (ORCHESTRATOR COORDINATES):**
+- **For EACH section, assign ONE writer and ONE critic**
+- **Each section has its own independent improvement loop running in parallel**
+- **If there are 6 sections, there will be 6 parallel improvement loops**
+- **CRITICAL**: Sub-agents CANNOT communicate directly - only the orchestrator coordinates between them
+- **Each loop sequence**: Writer → Orchestrator → Critic → Orchestrator → Writer (if needed) → ...
+- **The orchestrator receives results from one agent and passes them to the next agent**
 
 **Initial Setup:**
 - Load outline from `/plan_outline.json` to get all sections
 - Set quality threshold: `min_score = 7/10`
 - Set max iterations per section: `max_iterations = 5`
 
-1. **Create Critique Todo List FIRST**:
+1. **Create Improvement Loop Todo List FIRST**:
    - **CRITICAL - CREATE TODO LIST FIRST**:
-     * For EACH section in the outline, create a critique todo:
-       - `id`: "critique_section_[section_id]"
+     * For EACH section in the outline, create TWO todos:
+       - `id`: "critic_section_[section_id]"
        - `content`: "Critique section [section_title] ([section_id]) - target score 7/10"
        - `status`: "pending"
-     * **Call `write_todos` with the complete list of critique todos**
-     * **DO NOT delegate any critique tasks until you have created the todo list**
+       - `id`: "writer_section_[section_id]"
+       - `content`: "Improve section [section_title] ([section_id]) based on critique feedback"
+       - `status`: "pending"
+     * **Call `write_todos` with the complete list of todos (critic + writer for all sections)**
+     * **DO NOT delegate any tasks until you have created the todo list**
 
-**Process all sections in PARALLEL:**
+**Process all sections in PARALLEL - each section has its own writer-critic pair coordinated by orchestrator:**
 
-1. **Initial Critique Step for ALL Sections** (MANDATORY - DO NOT SKIP):
-   - **Look at your todo list**: Find ALL critique todos with status "pending"
-   - **First**: Update ALL pending critique todos status to "in_progress" using `write_todos` (update the full list)
-   - **Then**: Delegate critique tasks for ALL sections in PARALLEL using multiple `task` tool calls in a single message
-   - For each section, tell the critique-agent: "Critique section [section_id] from the research document. 
-     * Read `/question.txt`, `/plan_outline.json`
-     * **CRITICAL**: Check the section's `estimatedDepth` field in `/plan_outline.json` to see the user's desired length
-     * Read the section file: `section_[section_id].md`
-     * Provide structured critique with scores (1-10 scale)
-     * Use three reviewer perspectives (harsh but fair, critical but fair, open-minded)
-     * Identify specific improvement areas for this section
-     * **Check if section length matches the `estimatedDepth` specified in the outline** (user's desired length)
-     * Check if section aligns with the outline description
-     * Present your complete critique immediately - do NOT say things are 'underway' or 'in progress'"
-   - **CRITICAL**: Launch ALL critique tasks in PARALLEL using multiple task tool calls in a single message
-   - Each task tool returns immediately when critique-agent completes
-   - **CRITICAL - Update Todos IMMEDIATELY after each critique task completes**:
-     * Read the task result - it contains the complete critique with scores
-     * Extract overall quality score from the critique (look for "Overall Quality Score: X/10")
-     * Read all improvement recommendations from the critique carefully
-     * **CRITICAL - Assess Critique and Create Improvement Todos**:
-       - **If score < 7/10**, analyze the critique to determine what needs to be done:
-         * If critique says "Missing Information", "Research Needed", or "Insufficient Research" → Create research supplement todo
-         * If critique says "Writing Issues", "Insufficient Depth", "Too Short", "Doesn't match estimatedDepth" → Create rewrite/improve todo
-         * If critique says "Minor Issues", "Small Errors", "Formatting Problems" → Create edit todo
-         * If critique says "Missing Subsections" or "Wrong Structure" → Create rewrite todo to fix structure
-       - **Create specific improvement todos** based on the critique feedback:
-         * `{"id": "research_supplement_[section_id]", "content": "Research additional information for section [section_id]: [specific topic from critique]", "status": "pending"}`
-         * `{"id": "rewrite_section_[section_id]", "content": "Rewrite section [section_id] to address: [specific issues from critique - e.g., expand to match estimatedDepth, fix structure, improve writing]", "status": "pending"}`
-         * `{"id": "improve_section_[section_id]", "content": "Improve section [section_id] based on critique: [specific feedback]", "status": "pending"}`
-         * `{"id": "edit_section_[section_id]", "content": "Make minor edits to section [section_id]: [specific issues]", "status": "pending"}`
-     * Get the current todo list
-     * Find the todo item corresponding to this completed critique task
-     * Set its `status` field to `"completed"`
-     * Call `write_todos` with the FULL todo list (including completed critique todos and new improvement todos)
+2. **For EACH Section - Start Improvement Loop** (ALL sections in PARALLEL):
+   - **Look at your todo list**: Find ALL `critic_section_*` todos with status "pending"
+   - **First**: Update ALL pending `critic_section_*` todos status to "in_progress" using `write_todos` (update the full list)
+   - **Then**: For EACH section, delegate to CRITIC first (initial critique):
+     * **CRITIQUE TASK** (delegate to critique-agent): "Critique section [section_id] from the research document. 
+       - Read `/question.txt`, `/plan_outline.json`
+       - **CRITICAL**: Check the section's `estimatedDepth` field in `/plan_outline.json` to see the user's desired length
+       - Read the section file: `section_[section_id].md`
+       - Provide structured critique with scores (1-10 scale)
+       - Use three reviewer perspectives (harsh but fair, critical but fair, open-minded)
+       - Identify specific improvement areas for this section
+       - **Check if section length matches the `estimatedDepth` specified in the outline** (user's desired length)
+       - Check if section aligns with the outline description
+       - Present your complete critique immediately - do NOT say things are 'underway' or 'in progress'"
+   - **CRITICAL**: Launch ALL critique tasks in PARALLEL using multiple task tool calls in a single message (one critique per section)
+   - Each task tool returns immediately when the agent completes
 
-2. **Process Improvement Tasks** (CREATE TODOS, THEN delegate in PARALLEL):
-   - **After all critiques complete**, check your todo list for improvement todos (research_supplement, rewrite_section, improve_section, edit_section)
-   - **Group improvement tasks by type**:
-     * Research supplement tasks
-     * Section rewrite/improve tasks
-     * Edit tasks (can be done directly with edit_file)
-   - **Delegate improvement tasks in PARALLEL**:
-     * **For research supplement tasks**: Delegate ALL in parallel to individual-researcher-agent
-       - Tell the agent: "The critique identified that section [section_id] needs more information on [specific topic from critique]. Conduct additional research on [topic] using arxiv_search tool MULTIPLE TIMES. Save findings to research_findings_[topic]_supplement.md"
-     * **For rewrite/improve tasks**: Delegate ALL in parallel to section-writer-agent
-       - Tell the agent: "Rewrite/improve section [section_id] based on this critique feedback: [provide the specific critique feedback]. Read `/plan_outline.json` to check the section's `estimatedDepth` field (user's desired length) and `subsections` array. Read the current section_[section_id].md, read the critique feedback, and improve the section. **CRITICAL**: If critique says the section is too short, EXPAND it to match the `estimatedDepth` specified in the outline. If critique says structure is wrong or missing subsections, ensure you follow the `subsections` array from the outline exactly. Include ONLY the subsections listed in the outline (do NOT add conclusions or other subsections). Save to section_[section_id].md"
-     * **For edit tasks**: Use `edit_file` directly (these are fast, can be done sequentially or in parallel)
-   - **CRITICAL**: Launch ALL improvement tasks of the same type in PARALLEL using multiple task tool calls in a single message
-   - **Update todos as each task completes**:
-     * Read the task result
-     * Mark the corresponding todo as "completed"
-     * If a research task completes, create a rewrite todo for that section
-     * Call `write_todos` with the FULL todo list
+3. **For EACH Section - Orchestrator Receives Critique and Delegates to Writer** (ALL sections in PARALLEL):
+   - **After critique task completes for a section**, process the result:
+     * Read the critique task result - extract overall quality score (look for "Overall Quality Score: X/10")
+     * Extract the complete critique feedback (all improvement recommendations)
+     * **Update the `critic_section_[section_id]` todo**: Mark it as "completed"
+     * **If score >= 7/10**:
+       * Mark `writer_section_[section_id]` todo as "completed" - this section's loop is done
+       * **DO NOT delegate to writer** - section is complete
+     * **If score < 7/10**:
+       * **IMMEDIATELY delegate to WRITER** with the critique feedback:
+         - **WRITER TASK** (delegate to section-writer-agent): "Improve section [section_id] based on this critique feedback: [provide the complete critique feedback from the critic]. Read `/plan_outline.json` to check the section's `estimatedDepth` field (user's desired length) and `subsections` array. Read the current section_[section_id].md. Address the critique feedback: [specific issues from critique]. **CRITICAL**: If critique says the section is too short, EXPAND it to match the `estimatedDepth` specified in the outline. If critique says structure is wrong or missing subsections, ensure you follow the `subsections` array from the outline exactly. Include ONLY the subsections listed in the outline (do NOT add conclusions or other subsections). Save to section_[section_id].md"
+       * **Update the `writer_section_[section_id]` todo**: Mark it as "in_progress"
+       * **CRITICAL**: Launch ALL writer tasks in PARALLEL using multiple task tool calls in a single message (one writer per section that needs improvement)
+   - **Update todos**: Call `write_todos` with the FULL todo list (including updated critic and writer todos)
 
-3. **Check Loop Condition for Each Section**:
-   - After improvements complete, check each section's quality score from the last critique
-   - **For sections with score < 7/10 AND iterations < max_iterations**:
-     * Create a new critique todo for that section
-     * Mark it as "pending"
-   - **For sections with score >= 7/10 OR iterations >= max_iterations**:
-     * Section is complete - no further critique needed
-   - **If there are new critique todos**: Go back to step 1 and run critiques in PARALLEL for all sections needing re-critique
-   - **If all sections meet quality threshold**: Exit the critique loop
+4. **For EACH Section - Orchestrator Receives Writer Result and Delegates to Critic Again** (ALL sections in PARALLEL):
+   - **After writer task completes for a section**, process the result:
+     * Read the writer task result - verify section was improved
+     * **Update the `writer_section_[section_id]` todo**: Mark it as "completed"
+     * **Create a new `critic_section_[section_id]` todo** (or reuse if it exists) with status "pending" for the next iteration
+     * **IMMEDIATELY delegate to CRITIC again** for that section:
+       - **CRITIQUE TASK** (delegate to critique-agent): "Critique section [section_id] again after improvement. Read `/question.txt`, `/plan_outline.json`, and `section_[section_id].md`. Provide structured critique with scores. Check if section length matches `estimatedDepth` and if it aligns with the outline. Present your complete critique immediately."
+       * **Update the new `critic_section_[section_id]` todo**: Mark it as "in_progress"
+       * **CRITICAL**: Launch ALL critique tasks in PARALLEL using multiple task tool calls in a single message (one critique per section that was just improved)
+   - **Update todos**: Call `write_todos` with the FULL todo list (including updated writer todos and new critic todos)
+   - **After critique completes**: Go back to step 3 to process results and check if loops should continue
 
-**LOOP END**
+5. **Loop Until All Sections Complete**:
+   - **Continue steps 3-4** until:
+     * All sections have score >= 7/10 OR
+     * All sections have reached max_iterations (check by counting how many times `critic_section_[section_id]` has been completed)
+   - **For each section**: Track progress by checking the status of `critic_section_[section_id]` and `writer_section_[section_id]` todos
+   - **All sections run their loops in PARALLEL** - don't wait for one section to finish before starting another
+   - **The orchestrator coordinates each section's loop**:
+     * Receives result from critic → updates `critic_section_[section_id]` todo to "completed"
+     * If score < 7/10, delegates to writer with critique feedback → updates `writer_section_[section_id]` todo to "in_progress"
+     * Receives result from writer → updates `writer_section_[section_id]` todo to "completed"
+     * Creates new `critic_section_[section_id]` todo → delegates to critic again
+     * Repeats until section meets threshold or max iterations
+   - **Update todos as each section's loop progresses**:
+     * Mark `critic_section_[section_id]` and `writer_section_[section_id]` todos as "completed" when section meets threshold
+     * If max iterations reached, mark both todos as "completed" even if score < 7/10
 
-5. **After All Sections Are Critiqued and Improved**:
-   - **Check your todo list**: Are there any critique or improvement todos with status "pending" or "in_progress"?
-   - **If there are pending critique todos**: Delegate them in PARALLEL for all sections needing re-critique
-   - **If there are pending improvement todos**: Group by type and delegate in PARALLEL (all research tasks together, all rewrite tasks together)
-   - **If all critique and improvement todos are "completed"**: **IMMEDIATELY proceed to Phase 6** - no waiting needed, no progress reporting
+6. **After All Sections Complete Their Improvement Loops**:
+   - **Check your todo list**: Are there any `critic_section_*` or `writer_section_*` todos with status "pending" or "in_progress"?
+   - **If there are pending todos**: Continue the loop for those sections (orchestrator coordinates: critic → orchestrator → writer → orchestrator → critic if needed)
+   - **If all `critic_section_*` and `writer_section_*` todos are "completed"**: **IMMEDIATELY proceed to Phase 6** - no waiting needed, no progress reporting
 
 **CRITICAL LOOP RULES:**
-- **DO NOT skip critique** - always run critique first for each section
+- **ONE WRITER + ONE CRITIC PER SECTION** - each section has its own dedicated pair
+- **ALL SECTIONS RUN IN PARALLEL** - if there are 6 sections, 6 improvement loops run simultaneously
+- **Each loop is independent** - section 1's loop doesn't wait for section 2's loop
+- **ORCHESTRATOR COORDINATES** - sub-agents cannot communicate directly:
+  * Writer completes → returns result to orchestrator
+  * Orchestrator receives writer result → delegates to critic
+  * Critic completes → returns critique to orchestrator
+  * Orchestrator receives critique → decides if improvement needed
+  * If needed, orchestrator delegates to writer with critique feedback
+  * Repeat until score >= 7/10 OR max iterations
+- **DO NOT skip critique** - always run critique after each writer improvement
 - **DO NOT stop after first improvement** - always run critique again if score < 7/10
-- **After each improvement, IMMEDIATELY run critique again**
+- **After each improvement, IMMEDIATELY run critique again** for that section
 - Continue until score >= 7/10 OR max iterations reached for each section
-- Run critique loops in parallel for all sections when possible
+- **Track each section's progress independently** - use `critic_section_[section_id]` and `writer_section_[section_id]` todos to track progress
 
 **Output**: Improved `section_*.md` files (all sections meet quality threshold)
 

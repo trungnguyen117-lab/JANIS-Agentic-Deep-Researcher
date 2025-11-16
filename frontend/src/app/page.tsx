@@ -223,6 +223,17 @@ export default function HomePage() {
             setAvailableModels(models);
           }, [])}
           availableModels={availableModels}
+          onProcessedMessagesReady={React.useCallback((processedMessages: any[]) => {
+            setProcessedMessages((prev) => {
+              // Only update if the messages actually changed
+              const prevStr = JSON.stringify(prev);
+              const newStr = JSON.stringify(processedMessages);
+              if (prevStr !== newStr) {
+                return processedMessages;
+              }
+              return prev;
+            });
+          }, [])}
         />
         {selectedSubAgent && (
           <SubAgentPanel
