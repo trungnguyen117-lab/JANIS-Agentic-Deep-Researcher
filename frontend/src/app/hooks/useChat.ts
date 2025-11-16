@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo, useEffect, useRef, useState } from "react";
 import { useStream } from "@langchain/langgraph-sdk/react";
 import { type Message } from "@langchain/langgraph-sdk";
 import { getDeployment } from "@/lib/environment/deployments";
@@ -17,6 +17,8 @@ type StateType = {
     output: number;
     completion: number;
     reasoning: number;
+    cache?: number;
+    prompt?: number;
     total: number;
     cost: number;
   };
@@ -24,6 +26,10 @@ type StateType = {
     name: string;
     input_price_per_million: number;
     output_price_per_million: number;
+  }>;
+  subagent_tool_calls_map?: Record<string, {
+    tool_calls: any[];
+    subagent_type?: string;
   }>;
 };
 
@@ -34,7 +40,7 @@ export function useChat(
   ) => void,
   onTodosUpdate: (todos: TodoItem[]) => void,
   onFilesUpdate: (files: Record<string, string>) => void,
-  onTokenUsageUpdate?: (usage: { input: number; output: number; completion: number; reasoning: number; total: number; cost?: number }) => void,
+  onTokenUsageUpdate?: (usage: { input: number; output: number; completion: number; reasoning: number; cache?: number; prompt?: number; total: number; cost?: number }) => void,
   onModelsUpdate?: (models: Array<{ name: string; input_price_per_million: number; output_price_per_million: number }>) => void,
   selectedModel?: string, // Model selected by user (only used on first message)
 ) {
@@ -54,34 +60,209 @@ export function useChat(
     return extractFileContent(content);
   }, []);
 
+  // Track if we've received real-time token usage updates to prevent useEffect from overriding them
+  const hasReceivedRealTimeUpdate = useRef(false);
+  // Track previous token usage to prevent infinite loops
+  const previousTokenUsageRef = useRef<string | null>(null);
+  // Store the callback in a ref to avoid dependency issues
+  const onTokenUsageUpdateRef = useRef(onTokenUsageUpdate);
+  
+  // Local state for subagent_tool_calls_map to enable real-time updates
+  // This is merged with stream.values.subagent_tool_calls_map
+  const [localSubagentToolCallsMap, setLocalSubagentToolCallsMap] = useState<Record<string, {
+    tool_calls: any[];
+    subagent_type?: string;
+  }>>({});
+  
+  // Local state for sub-agent messages with tool_calls for real-time display
+  // These come via stream_writer and need to be merged with stream.messages
+  const [localSubagentMessages, setLocalSubagentMessages] = useState<Message[]>([]);
+  
+  // Update the ref when the callback changes
+  useEffect(() => {
+    onTokenUsageUpdateRef.current = onTokenUsageUpdate;
+  }, [onTokenUsageUpdate]);
+
+    const handleCustomEvent = useCallback(
+      (data: any) => {
+        // Handle custom events from stream_writer
+        // These contain subagent_tool_calls_map updates and messages with tool_calls for real-time streaming
+        console.log("[useChat] handleCustomEvent received:", {
+          hasData: !!data,
+          dataKeys: data ? Object.keys(data) : [],
+          hasMessages: !!data?.messages,
+          messagesCount: data?.messages?.length || 0,
+          hasSubagentToolCallsMap: !!data?.subagent_tool_calls_map,
+          subagentToolCallsMapKeys: data?.subagent_tool_calls_map ? Object.keys(data.subagent_tool_calls_map) : [],
+        });
+        
+        // Handle messages with tool_calls for real-time display
+        // These are sub-agent AIMessages that should appear in stream.messages
+        if (data?.messages && Array.isArray(data.messages) && data.messages.length > 0) {
+          console.log("[useChat] Received sub-agent messages with tool_calls:", {
+            messagesCount: data.messages.length,
+            messageIds: data.messages.map((m: any) => m.id),
+          });
+          // Merge new messages into local state, avoiding duplicates by message ID
+          setLocalSubagentMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const newMessages = data.messages.filter((m: any) => m.id && !existingIds.has(m.id));
+            if (newMessages.length > 0) {
+              console.log("[useChat] Adding new sub-agent messages to local state:", {
+                newCount: newMessages.length,
+                totalCount: prev.length + newMessages.length,
+              });
+              return [...prev, ...newMessages];
+            }
+            return prev;
+          });
+        }
+        
+        // Check if this is a subagent_tool_calls_map update
+        if (data?.subagent_tool_calls_map) {
+          console.log("[useChat] Merging subagent_tool_calls_map from custom event:", {
+            newKeys: Object.keys(data.subagent_tool_calls_map),
+            toolCallIds: Object.keys(data.subagent_tool_calls_map),
+          });
+          // Merge subagent_tool_calls_map into local state for real-time updates
+          setLocalSubagentToolCallsMap(prev => {
+            const merged = {
+              ...prev,
+              ...data.subagent_tool_calls_map,
+            };
+            console.log("[useChat] Merged subagent_tool_calls_map:", {
+              previousKeys: Object.keys(prev),
+              newKeys: Object.keys(data.subagent_tool_calls_map),
+              mergedKeys: Object.keys(merged),
+            });
+            return merged;
+          });
+        }
+      },
+      [],
+    );
+
     const handleUpdateEvent = useCallback(
       (data: { [node: string]: Partial<StateType> }) => {
-        // Check all nodes for token_usage - it might be in any node
-        let foundTokenUsage = false;
+        // Debug: Log all update events to see what we're receiving
+        console.log("[useChat] handleUpdateEvent called with data:", {
+          nodeNames: Object.keys(data),
+          dataKeys: Object.keys(data).map(key => ({
+            key,
+            hasTokenUsage: !!data[key]?.token_usage,
+            tokenUsage: data[key]?.token_usage,
+          })),
+          fullData: data,
+        });
+        
         Object.entries(data).forEach(([nodeName, nodeData]) => {
         if (nodeData?.todos) {
           onTodosUpdate(nodeData.todos);
         }
         
-        // Check for token_usage in nodeData (could be nested or direct)
-        let tokenUsage = null;
-        if (nodeData?.token_usage) {
-          tokenUsage = nodeData.token_usage;
-        } else if (nodeData && typeof nodeData === 'object') {
-          // Check if token_usage is nested in the nodeData object
-          tokenUsage = (nodeData as any).token_usage;
+        // Handle sub-agent streaming updates
+        // Sub-agent updates come via stream_writer as custom data
+        // They contain messages and subagent_tool_calls_map updates
+        // We need to merge subagent_tool_calls_map into local state for real-time updates
+        if (nodeData?.subagent_tool_calls_map) {
+          // Merge subagent_tool_calls_map into local state for real-time updates
+          // This ensures the frontend sees tool calls as they're generated, not just at the end
+          setLocalSubagentToolCallsMap(prev => ({
+            ...prev,
+            ...nodeData.subagent_tool_calls_map,
+          }));
         }
         
-        if (tokenUsage && onTokenUsageUpdate) {
-          foundTokenUsage = true;
-          onTokenUsageUpdate({
-            input: tokenUsage.input || 0,
-            output: tokenUsage.output || 0,
-            completion: tokenUsage.completion || 0,
-            reasoning: tokenUsage.reasoning || 0,
-            total: tokenUsage.total || 0,
-            cost: tokenUsage.cost || 0,
+        // Also check for subagent_ prefixed node names (legacy format)
+        if (nodeName.startsWith("subagent_") && nodeData?.subagent_tool_calls_map) {
+          // If this node has subagent_tool_calls_map, merge it
+          setLocalSubagentToolCallsMap(prev => ({
+            ...prev,
+            ...nodeData.subagent_tool_calls_map,
+          }));
+        }
+        
+        // Handle token usage updates from ANY node that includes token_usage
+        // This is the PRIMARY source for real-time token usage updates
+        // Token usage can come from any node, not just __token_usage_update__
+        console.log("[useChat] Processing node:", {
+          nodeName,
+          hasTokenUsage: !!nodeData?.token_usage,
+          tokenUsage: nodeData?.token_usage,
+          nodeDataKeys: nodeData ? Object.keys(nodeData) : [],
+          isTokenUsageUpdate: nodeName === "__token_usage_update__",
+        });
+        
+        // Check for token_usage in ANY node data (not just __token_usage_update__)
+        if (nodeData?.token_usage && onTokenUsageUpdate) {
+          console.log("[useChat] Received token usage update from stream_writer:", {
+            input: nodeData.token_usage.input,
+            output: nodeData.token_usage.output,
+            total: nodeData.token_usage.total,
+            cost: nodeData.token_usage.cost,
+            cache: nodeData.token_usage.cache,
+            prompt: nodeData.token_usage.prompt,
+            completion: nodeData.token_usage.completion,
+            reasoning: nodeData.token_usage.reasoning,
+            fullData: nodeData.token_usage,
           });
+          // Update immediately - this is the real-time update
+          // Mark that we've received a real-time update to prevent useEffect from overriding
+          hasReceivedRealTimeUpdate.current = true;
+          
+          const tokenUsage = {
+            input: nodeData.token_usage.input || 0,
+            output: nodeData.token_usage.output || 0,
+            completion: nodeData.token_usage.completion || 0,
+            reasoning: nodeData.token_usage.reasoning || 0,
+            cache: nodeData.token_usage.cache || 0,
+            prompt: nodeData.token_usage.prompt || 0,
+            total: nodeData.token_usage.total || 0,
+            cost: nodeData.token_usage.cost || 0,
+          };
+          
+          // Check if this is different from previous to prevent unnecessary updates
+          const usageString = JSON.stringify(tokenUsage);
+          if (previousTokenUsageRef.current !== usageString && onTokenUsageUpdateRef.current) {
+            previousTokenUsageRef.current = usageString;
+            onTokenUsageUpdateRef.current(tokenUsage);
+          }
+        }
+        
+        // Also check if token_usage is in the nodeData directly (fallback)
+        if (nodeData?.token_usage && onTokenUsageUpdateRef.current && nodeName !== "__token_usage_update__") {
+          console.log("[useChat] Received token usage in nodeData:", {
+            nodeName,
+            input: nodeData.token_usage.input,
+            output: nodeData.token_usage.output,
+            total: nodeData.token_usage.total,
+          });
+          
+          const tokenUsage = {
+            input: nodeData.token_usage.input || 0,
+            output: nodeData.token_usage.output || 0,
+            completion: nodeData.token_usage.completion || 0,
+            reasoning: nodeData.token_usage.reasoning || 0,
+            cache: nodeData.token_usage.cache || 0,
+            prompt: nodeData.token_usage.prompt || 0,
+            total: nodeData.token_usage.total || 0,
+            cost: nodeData.token_usage.cost || 0,
+          };
+          
+          // Check if this is different from previous to prevent unnecessary updates
+          const usageString = JSON.stringify(tokenUsage);
+          if (previousTokenUsageRef.current !== usageString) {
+            previousTokenUsageRef.current = usageString;
+            onTokenUsageUpdateRef.current(tokenUsage);
+          }
+        }
+        
+        // Handle sub-agent updates from stream_writer
+        // These come as custom events with subagent_* node names
+        if (nodeName.startsWith("subagent_") && nodeData) {
+          // Sub-agent updates are processed when the ToolMessage arrives
+          // The stream_writer events are just for real-time visibility
+          // The actual tool calls are in the ToolMessage's additional_kwargs
         }
         
         if (nodeData?.available_models && onModelsUpdate) {
@@ -94,26 +275,6 @@ export function useChat(
               // Don't process empty file updates that might clear existing files
               // Continue processing other updates (like todos) from other nodes
             } else if (nodeData.files) {
-              // Check for token_usage.json file and update token usage
-              if (nodeData.files["/token_usage.json"]) {
-                try {
-                  const tokenUsageContent = normalizeFileContent(nodeData.files["/token_usage.json"]);
-                  const usage = JSON.parse(tokenUsageContent);
-                  if (onTokenUsageUpdate) {
-                    onTokenUsageUpdate({
-                      input: usage.input || 0,
-                      output: usage.output || 0,
-                      completion: usage.completion || 0,
-                      reasoning: usage.reasoning || 0,
-                      total: usage.total || 0,
-                      cost: usage.cost || 0,
-                    });
-                  }
-                } catch (error) {
-                  console.error("[handleUpdateEvent] Failed to parse token_usage.json:", error);
-                }
-              }
-              
               // Normalize file content to ensure all values are strings
               const normalizedFiles: Record<string, string> = {};
               Object.entries(nodeData.files).forEach(([path, content]) => {
@@ -133,10 +294,8 @@ export function useChat(
             }
           }
       });
-      
-      // Token usage will be handled by file reading or message parsing
     },
-    [onTodosUpdate, onFilesUpdate, normalizeFileContent, onTokenUsageUpdate, onModelsUpdate],
+    [onTodosUpdate, onFilesUpdate, normalizeFileContent, onModelsUpdate, onTokenUsageUpdate],
   );
 
   const stream = useStream<StateType>({
@@ -145,11 +304,90 @@ export function useChat(
     reconnectOnMount: !!threadId, // Only reconnect if we have a threadId
     threadId: threadId ?? null,
     onUpdateEvent: handleUpdateEvent,
+    onCustomEvent: handleCustomEvent, // Handle custom events from stream_writer
     onThreadId: setThreadId,
     defaultHeaders: {
       "x-auth-scheme": "langsmith",
     },
   });
+  
+  // Watch stream.values.token_usage directly for real-time updates
+  // stream_writer updates might go directly to stream.values, not through onUpdateEvent
+  // This is the PRIMARY way to get real-time token usage updates
+  // We watch the entire stream.values object because nested property changes might not trigger updates
+  useEffect(() => {
+    // Debug: Log stream.values to see what we have
+    console.log("[useChat] stream.values changed:", {
+      hasValues: !!stream.values,
+      valuesKeys: stream.values ? Object.keys(stream.values) : [],
+      hasTokenUsage: !!stream.values?.token_usage,
+      tokenUsage: stream.values?.token_usage,
+      fullValues: stream.values,
+    });
+    
+    if (!onTokenUsageUpdateRef.current) return;
+    
+    const usage = stream.values?.token_usage;
+    
+    // Create a string representation to compare
+    const usageString = usage ? JSON.stringify({
+      input: usage.input || 0,
+      output: usage.output || 0,
+      completion: usage.completion || 0,
+      reasoning: usage.reasoning || 0,
+      cache: usage.cache || 0,
+      prompt: usage.prompt || 0,
+      total: usage.total || 0,
+      cost: usage.cost || 0,
+    }) : JSON.stringify({
+      input: 0,
+      output: 0,
+      completion: 0,
+      reasoning: 0,
+      cache: 0,
+      prompt: 0,
+      total: 0,
+      cost: 0,
+    });
+    
+    // Only update if it's different from previous
+    if (previousTokenUsageRef.current !== usageString) {
+      // Check if this is a meaningful update (non-zero values or explicit zero reset)
+      const hasNonZeroValues = (usage?.input || 0) > 0 || (usage?.output || 0) > 0 || (usage?.total || 0) > 0;
+      
+      // Only log and update if we have non-zero values OR if this is the first update
+      if (hasNonZeroValues || previousTokenUsageRef.current === null) {
+        console.log("[useChat] stream.values.token_usage changed:", {
+          usage,
+          input: usage?.input,
+          output: usage?.output,
+          total: usage?.total,
+          cost: usage?.cost,
+          previousString: previousTokenUsageRef.current,
+          newString: usageString,
+          streamValuesKeys: stream.values ? Object.keys(stream.values) : [],
+          hasNonZeroValues,
+        });
+        
+        previousTokenUsageRef.current = usageString;
+        hasReceivedRealTimeUpdate.current = true; // Mark as received
+        
+        onTokenUsageUpdateRef.current({
+          input: usage?.input || 0,
+          output: usage?.output || 0,
+          completion: usage?.completion || 0,
+          reasoning: usage?.reasoning || 0,
+          cache: usage?.cache || 0,
+          prompt: usage?.prompt || 0,
+          total: usage?.total || 0,
+          cost: usage?.cost || 0,
+        });
+      } else {
+        // Still update the ref to prevent re-processing, but don't call the callback
+        previousTokenUsageRef.current = usageString;
+      }
+    }
+  }, [stream.values]); // Watch entire stream.values object - nested property changes should trigger this
 
   const sendMessage = useCallback(
     (message: string) => {
@@ -193,90 +431,137 @@ export function useChat(
     stream.stop();
   }, [stream]);
 
-  // Read token usage - prioritize response_metadata (updated immediately after each model call)
+  // Read token usage from state - thread-isolated (FALLBACK only)
+  // NOTE: Real-time updates come via handleUpdateEvent (stream_writer events)
+  // This useEffect is only for initial load and when thread changes
   useEffect(() => {
-    if (!onTokenUsageUpdate) return;
+    if (!onTokenUsageUpdateRef.current) return;
     
-    // Primary source: Get the latest token usage from the most recent AI message's response_metadata
-    // This is updated immediately after each model call completes, so it's the most real-time
-    let totalUsage = {
+    // Read token usage directly from state (thread-isolated)
+    // This is a fallback for when stream_writer updates aren't available
+    const usage = stream.values?.token_usage;
+    
+    // Create a string representation of the usage to compare
+    const usageString = usage ? JSON.stringify({
+      input: usage.input || 0,
+      output: usage.output || 0,
+      completion: usage.completion || 0,
+      reasoning: usage.reasoning || 0,
+      cache: usage.cache || 0,
+      prompt: usage.prompt || 0,
+      total: usage.total || 0,
+      cost: usage.cost || 0,
+    }) : JSON.stringify({
       input: 0,
       output: 0,
       completion: 0,
       reasoning: 0,
+      cache: 0,
+      prompt: 0,
       total: 0,
       cost: 0,
-    };
+    });
     
-    // Find the most recent AI message with token_usage
-    for (let i = stream.messages.length - 1; i >= 0; i--) {
-      const msg = stream.messages[i];
-      if (msg.type === "ai" && msg.response_metadata?.token_usage) {
-        const usage = msg.response_metadata.token_usage as {
-          input?: number;
-          output?: number;
-          completion?: number;
-          reasoning?: number;
-          total?: number;
-          cost?: number;
-        };
-        // Use the latest cumulative value (don't sum, it's already cumulative)
-        totalUsage = {
-          input: usage.input || 0,
-          output: usage.output || 0,
-          completion: usage.completion || 0,
-          reasoning: usage.reasoning || 0,
-          total: usage.total || 0,
-          cost: usage.cost || 0,
-        };
-        break; // Use the most recent value
-      }
+    // Only update if the usage has actually changed
+    if (previousTokenUsageRef.current === usageString) {
+      return; // Skip if same as previous
     }
     
-    // Fallback 1: If no messages have token_usage, check stream.values.token_usage (from state)
-    if (totalUsage.total === 0 && stream.values?.token_usage) {
-      const usage = stream.values.token_usage;
-      totalUsage = {
+    console.log("[useChat] useEffect: Reading token usage from stream.values (fallback):", {
+      usage,
+      hasUsage: !!usage,
+      input: usage?.input,
+      output: usage?.output,
+      total: usage?.total,
+      cost: usage?.cost,
+      hasReceivedRealTimeUpdate: hasReceivedRealTimeUpdate.current,
+      streamValuesKeys: stream.values ? Object.keys(stream.values) : [],
+      usageChanged: previousTokenUsageRef.current !== usageString,
+    });
+    
+    // Only update from stream.values if we haven't received real-time updates
+    // OR if this is a thread change (threadId changed)
+    if (usage && (!hasReceivedRealTimeUpdate.current || threadId)) {
+      const tokenUsage = {
         input: usage.input || 0,
         output: usage.output || 0,
         completion: usage.completion || 0,
         reasoning: usage.reasoning || 0,
+        cache: usage.cache || 0,
+        prompt: usage.prompt || 0,
         total: usage.total || 0,
         cost: usage.cost || 0,
       };
+      previousTokenUsageRef.current = usageString;
+      onTokenUsageUpdateRef.current(tokenUsage);
+    } else if (!usage && !hasReceivedRealTimeUpdate.current) {
+      // No token usage in state yet - set to zero (only if no real-time updates received)
+      previousTokenUsageRef.current = usageString;
+      onTokenUsageUpdateRef.current({
+        input: 0,
+        output: 0,
+        completion: 0,
+        reasoning: 0,
+        cache: 0,
+        prompt: 0,
+        total: 0,
+        cost: 0,
+      });
+    }
+  }, [stream.values, threadId]); // Removed onTokenUsageUpdate from dependencies to prevent infinite loop
+  
+  // Reset the real-time update flag when thread changes
+  useEffect(() => {
+    hasReceivedRealTimeUpdate.current = false;
+    previousTokenUsageRef.current = null; // Reset previous usage when thread changes
+  }, [threadId]);
+
+  // Merge local state with stream.values for subagent_tool_calls_map
+  // Local state has real-time updates from stream_writer, stream.values has final state
+  const mergedSubagentToolCallsMap = useMemo(() => {
+    const streamMap = stream.values?.subagent_tool_calls_map || {};
+    const merged = {
+      ...streamMap,
+      ...localSubagentToolCallsMap,
+    };
+    return merged;
+  }, [stream.values?.subagent_tool_calls_map, localSubagentToolCallsMap]);
+  
+  // Reset local state when thread changes
+  useEffect(() => {
+    setLocalSubagentToolCallsMap({});
+    setLocalSubagentMessages([]);
+  }, [threadId]);
+
+  // Merge sub-agent messages with stream.messages for real-time display
+  // Sub-agent messages come via stream_writer and need to be combined with main agent messages
+  const mergedMessages = useMemo(() => {
+    // Combine stream.messages with local sub-agent messages
+    // Filter out duplicates by message ID
+    const streamMessageIds = new Set(stream.messages.map(m => m.id));
+    const uniqueSubagentMessages = localSubagentMessages.filter(m => m.id && !streamMessageIds.has(m.id));
+    
+    // Merge: stream.messages first, then sub-agent messages
+    // This ensures main agent messages appear first, then sub-agent messages
+    const merged = [...stream.messages, ...uniqueSubagentMessages];
+    
+    if (uniqueSubagentMessages.length > 0) {
+      console.log("[useChat] Merged messages:", {
+        streamMessagesCount: stream.messages.length,
+        subagentMessagesCount: uniqueSubagentMessages.length,
+        totalCount: merged.length,
+      });
     }
     
-    // Fallback 2: Check token_usage.json file in stream.values.files
-    if (totalUsage.total === 0) {
-      const tokenUsageFile = stream.values?.files?.["/token_usage.json"];
-      if (tokenUsageFile) {
-        try {
-          const usage = typeof tokenUsageFile === "string" 
-            ? JSON.parse(tokenUsageFile) 
-            : tokenUsageFile;
-          totalUsage = {
-            input: usage.input || 0,
-            output: usage.output || 0,
-            completion: usage.completion || 0,
-            reasoning: usage.reasoning || 0,
-            total: usage.total || 0,
-            cost: usage.cost || 0,
-          };
-        } catch (error) {
-          console.error("[useChat] Failed to parse token_usage.json:", error);
-        }
-      }
-    }
-    
-    // Update token usage (always update, even if 0, to ensure UI reflects current state)
-    onTokenUsageUpdate(totalUsage);
-  }, [stream.values, stream.messages, onTokenUsageUpdate]);
+    return merged;
+  }, [stream.messages, localSubagentMessages]);
 
   return {
-    messages: stream.messages,
+    messages: mergedMessages,  // Use merged messages instead of just stream.messages
     isLoading: stream.isLoading,
     sendMessage,
     stopStream,
+    subagentToolCallsMap: mergedSubagentToolCallsMap,
   };
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { User, Bot, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubAgentIndicator } from "../SubAgentIndicator/SubAgentIndicator";
@@ -32,19 +32,6 @@ export const ChatMessage = React.memo<ChatMessageProps>(
     
     // Extract sub-agents from tool calls
     const subAgents = useMemo(() => {
-      // Debug: Log all tool calls to see their structure
-      console.log("[ChatMessage] All tool calls:", {
-        messageId: message.id,
-        toolCallsCount: toolCalls.length,
-        toolCalls: toolCalls.map(tc => ({
-          id: tc.id,
-          name: tc.name,
-          args: tc.args,
-          status: tc.status,
-          hasResult: !!tc.result,
-        })),
-      });
-      
       const filtered = toolCalls
         .filter((toolCall: ToolCall) => {
           const isTask = toolCall.name === "task";
@@ -53,17 +40,6 @@ export const ChatMessage = React.memo<ChatMessageProps>(
             toolCall.args["subagentType"] ||
             toolCall.args.subagent_type
           );
-          
-          // Debug: Log why tool calls are filtered out
-          if (!isTask) {
-            console.log("[ChatMessage] Tool call filtered: not a task", { name: toolCall.name });
-          } else if (!hasSubagentType) {
-            console.log("[ChatMessage] Tool call filtered: no subagent_type", { 
-              name: toolCall.name, 
-              args: toolCall.args,
-              argsKeys: toolCall.args ? Object.keys(toolCall.args) : [],
-            });
-          }
           
           return isTask && hasSubagentType;
         })
@@ -82,21 +58,6 @@ export const ChatMessage = React.memo<ChatMessageProps>(
             status: toolCall.status,
           };
         });
-      
-      // Debug: Log sub-agents for this message
-      console.log("[ChatMessage] Extracted sub-agents:", {
-        messageId: message.id,
-        toolCallsCount: toolCalls.length,
-        subAgentsCount: filtered.length,
-        subAgents: filtered.map(sa => ({
-          id: sa.id,
-          name: sa.subAgentName,
-          status: sa.status,
-          hasOutput: !!sa.output,
-          outputLength: sa.output?.length || 0,
-        })),
-        fullSubAgents: filtered, // Include full objects for inspection
-      });
       
       return filtered;
     }, [toolCalls, message.id]);
@@ -117,24 +78,6 @@ export const ChatMessage = React.memo<ChatMessageProps>(
       const hasPlanningAgent = planningAgentSubAgents.length > 0;
       const hasOutline = hasOutlineFile;
       
-      console.log("[ChatMessage] Plan proposal check:", {
-        messageId: message.id,
-        isUser,
-        hasContent: !!messageContent,
-        hasPlanningAgent,
-        planningAgentCount: planningAgentSubAgents.length,
-        hasOutline,
-        allSubAgentsCount: subAgents.length,
-        allSubAgentNames: subAgents.map(sa => sa.subAgentName),
-        planningAgentSubAgents: planningAgentSubAgents.map(sa => ({
-          id: sa.id,
-          name: sa.subAgentName,
-          status: sa.status,
-          hasOutput: !!sa.output,
-          outputLength: sa.output?.length || 0,
-        })),
-      });
-      
       // Show approve button if:
       // 1. There's a planning-agent sub-agent (task was delegated), AND
       // 2. Either the outline file exists OR at least one planning-agent task has completed with output
@@ -145,7 +88,6 @@ export const ChatMessage = React.memo<ChatMessageProps>(
       
       // If outline file exists, that's a strong indicator the plan is ready
       if (hasOutline) {
-        console.log("[ChatMessage] Plan proposal detected: outline file exists");
         return true;
       }
       
@@ -162,10 +104,6 @@ export const ChatMessage = React.memo<ChatMessageProps>(
         }
       );
       
-      if (hasCompletedPlanningAgent) {
-        console.log("[ChatMessage] Plan proposal detected: planning-agent completed");
-      }
-      
       return hasCompletedPlanningAgent;
     }, [isUser, messageContent, subAgents, hasOutlineFile, message.id]);
 
@@ -179,47 +117,54 @@ export const ChatMessage = React.memo<ChatMessageProps>(
       const filtered = toolCalls.filter((toolCall: ToolCall) => {
         // Exclude "task" tool calls (these are sub-agent delegations)
         const isTaskCall = toolCall.name === "task";
-        if (!isTaskCall) {
-          console.log("[ChatMessage] Including orchestrator tool call:", {
-            id: toolCall.id,
-            name: toolCall.name,
-            status: toolCall.status,
-          });
-        }
         return !isTaskCall;
-      });
-      
-      // Debug: Log orchestrator tool calls
-      console.log("[ChatMessage] Orchestrator tool calls summary:", {
-        messageId: message.id,
-        totalToolCalls: toolCalls.length,
-        orchestratorToolCallsCount: filtered.length,
-        isUser,
-        willRender: !isUser && filtered.length > 0,
-        orchestratorToolCalls: filtered.map(tc => ({
-          id: tc.id,
-          name: tc.name,
-          status: tc.status,
-          hasResult: !!tc.result,
-        })),
       });
       
       return filtered;
     }, [toolCalls, message.id, isUser]);
 
+    // Sync selectedSubAgent with subAgents array if it exists
+    // This ensures that if subAgents array updates (e.g., tool calls complete), 
+    // the selectedSubAgent object is updated with the latest data
+    // We use refs to track state and prevent infinite loops
+    const lastSyncedSubAgentsStringRef = useRef<string | null>(null);
+    const selectedSubAgentRef = useRef(selectedSubAgent);
+    const onSelectSubAgentRef = useRef(onSelectSubAgent);
+    
+    // Keep refs up to date
     useEffect(() => {
-      if (
-        subAgents.some(
-          (subAgent: SubAgent) => subAgent.id === selectedSubAgent?.id,
-        )
-      ) {
-        onSelectSubAgent(
-          subAgents.find(
-            (subAgent: SubAgent) => subAgent.id === selectedSubAgent?.id,
-          )!,
-        );
+      selectedSubAgentRef.current = selectedSubAgent;
+      onSelectSubAgentRef.current = onSelectSubAgent;
+    }, [selectedSubAgent, onSelectSubAgent]);
+    
+    useEffect(() => {
+      // Only sync if subAgents have actually changed (not just selectedSubAgent)
+      if (lastSyncedSubAgentsStringRef.current === subAgentsString) {
+        return; // Sub-agents haven't changed, no need to sync
       }
-    }, [selectedSubAgent, onSelectSubAgent, subAgentsString]);
+      
+      // Update the ref to mark that we've processed this subAgentsString
+      lastSyncedSubAgentsStringRef.current = subAgentsString;
+      
+      // Only sync if we have a selectedSubAgent (use ref to avoid dependency)
+      const currentSelectedSubAgent = selectedSubAgentRef.current;
+      if (!currentSelectedSubAgent) {
+        return;
+      }
+      
+      // Check if selectedSubAgent exists in subAgents
+      const foundSubAgent = subAgents.find(
+        (subAgent: SubAgent) => subAgent.id === currentSelectedSubAgent.id,
+      );
+      
+      // Only update if we found a match AND the object reference is different (data has changed)
+      if (foundSubAgent && foundSubAgent !== currentSelectedSubAgent) {
+        // Use requestAnimationFrame to defer the update and break any synchronous loops
+        requestAnimationFrame(() => {
+          onSelectSubAgentRef.current(foundSubAgent);
+        });
+      }
+    }, [subAgentsString, subAgents]); // ONLY depend on subAgentsString and subAgents - this prevents loops when selectedSubAgent changes
 
     return (
       <div
@@ -263,14 +208,9 @@ export const ChatMessage = React.memo<ChatMessageProps>(
           {!isUser && orchestratorToolCalls.length > 0 && (
             <div className={styles.toolCalls}>
               <h4 className={styles.toolCallsHeader}>Tool Calls ({orchestratorToolCalls.length})</h4>
-              {orchestratorToolCalls.map((toolCall: ToolCall) => {
-                console.log("[ChatMessage] Rendering orchestrator tool call:", {
-                  id: toolCall.id,
-                  name: toolCall.name,
-                  status: toolCall.status,
-                });
-                return <ToolCallBox key={toolCall.id} toolCall={toolCall} />;
-              })}
+              {orchestratorToolCalls.map((toolCall: ToolCall) => (
+                <ToolCallBox key={toolCall.id} toolCall={toolCall} />
+              ))}
             </div>
           )}
           {/* Show sub-agent indicators (task tool calls delegate to sub-agents) */}

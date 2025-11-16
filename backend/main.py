@@ -26,15 +26,13 @@ from backend.agents import create_sub_agents
 # Load environment variables
 load_dotenv()
 
-# Initialize OpenTelemetry HTTP interception for accurate token tracking
-# This intercepts at the HTTP level to get actual per-call token usage
-# Must be done before importing LangChain models
-# setup_opentelemetry_tracking()  # Disabled for now, using OpenLIT with better filtering
-
-# Initialize OpenLIT for automatic token tracking (must be done before importing LangChain models)
-# OpenLIT will automatically instrument LangChain and track token usage
-from backend.config.openlit_setup import setup_openlit
-setup_openlit()
+# Initialize token tracking (must be done before importing LangChain models)
+# Uses TOKEN_TRACKING_LIBRARY environment variable to choose between:
+# - "openlit" (default): OpenLIT automatic instrumentation
+# - "opentelemetry": OpenTelemetry direct instrumentation
+# - "langfuse": Langfuse API queries (requires LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY)
+from backend.config.token_tracking_setup import setup_token_tracking
+setup_token_tracking()
 
 
 def create_agent(model_name: str | None = None):

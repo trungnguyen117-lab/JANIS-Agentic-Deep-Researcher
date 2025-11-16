@@ -1,6 +1,7 @@
 """Middleware for providing subagents to an agent via a `task` tool."""
 
 from collections.abc import Awaitable, Callable, Sequence
+from copy import deepcopy
 from typing import Any, NotRequired, TypedDict, cast
 
 from langchain.agents import create_agent
@@ -11,7 +12,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, ToolMessage, AIMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import StructuredTool
-from langgraph.types import Command
+from langgraph.types import Command, Overwrite
 
 
 class SubAgent(TypedDict):
@@ -319,12 +320,42 @@ def _create_task_tool(
             messages: List of messages from sub-agent execution
             
         Returns:
-            List of tool call dictionaries with name, args, and id
+            List of tool call dictionaries with name, args, id, and result (if available)
         """
         import json
+        import logging
+        from langchain_core.messages import ToolMessage
+        
         tool_calls = []
+        tool_call_results = {}  # Map tool_call_id -> result
+        
+        # First pass: extract tool call results from ToolMessages
         for msg in messages:
+            if isinstance(msg, ToolMessage):
+                tool_call_id = getattr(msg, "tool_call_id", None)
+                if tool_call_id:
+                    # Get result content
+                    result_content = ""
+                    if hasattr(msg, "content"):
+                        result_content = msg.content
+                    elif hasattr(msg, "text"):
+                        result_content = msg.text
+                    elif isinstance(msg, dict):
+                        result_content = msg.get("content", msg.get("text", ""))
+                    else:
+                        result_content = str(msg)
+                    
+                    tool_call_results[tool_call_id] = result_content
+        
+        # Second pass: extract tool calls from AIMessages and match with results
+        for idx, msg in enumerate(messages):
             if isinstance(msg, AIMessage):
+                logging.info(
+                    f"[SubAgent] _extract_subagent_tool_calls: Processing AIMessage {idx}, "
+                    f"has_tool_calls={hasattr(msg, 'tool_calls') and bool(msg.tool_calls)}, "
+                    f"tool_calls_count={len(msg.tool_calls) if hasattr(msg, 'tool_calls') and msg.tool_calls else 0}, "
+                    f"has_additional_kwargs={hasattr(msg, 'additional_kwargs') and bool(msg.additional_kwargs)}"
+                )
                 # Extract tool calls from AI messages
                 if hasattr(msg, 'tool_calls') and msg.tool_calls:
                     for tc in msg.tool_calls:
@@ -345,11 +376,21 @@ def _create_task_tool(
                             except (json.JSONDecodeError, TypeError):
                                 pass  # Keep as string if not valid JSON
                         
-                        tool_calls.append({
+                        tool_call_dict = {
                             "id": tc_id,
                             "name": tc_name,
                             "args": tc_args,
-                        })
+                        }
+                        
+                        # Add result if available
+                        if tc_id in tool_call_results:
+                            tool_call_dict["result"] = tool_call_results[tc_id]
+                            tool_call_dict["status"] = "completed"
+                        else:
+                            tool_call_dict["status"] = "pending"
+                        
+                        tool_calls.append(tool_call_dict)
+                
                 # Also check additional_kwargs for tool_calls
                 if hasattr(msg, 'additional_kwargs') and msg.additional_kwargs:
                     if 'tool_calls' in msg.additional_kwargs:
@@ -365,43 +406,173 @@ def _create_task_tool(
                                 except (json.JSONDecodeError, TypeError):
                                     pass  # Keep as string if not valid JSON
                             
-                            tool_calls.append({
+                            tool_call_dict = {
                                 "id": tc_id,
                                 "name": tc_name,
                                 "args": tc_args,
-                            })
+                            }
+                            
+                            # Add result if available
+                            if tc_id in tool_call_results:
+                                tool_call_dict["result"] = tool_call_results[tc_id]
+                                tool_call_dict["status"] = "completed"
+                            else:
+                                tool_call_dict["status"] = "pending"
+                            
+                            tool_calls.append(tool_call_dict)
+        
+        # Log only summary, not full details
+        if not tool_calls:
+            logging.warning(
+                f"[SubAgent] _extract_subagent_tool_calls: No tool calls extracted from {len(messages)} messages"
+        )
+        
         return tool_calls
 
-    def _return_command_with_state_update(result: dict, tool_call_id: str, subagent_type: str = None) -> Command:
+    def _return_command_with_state_update(result: dict, tool_call_id: str, subagent_type: str = None, accumulated_tool_calls_map: dict = None) -> Command:
         state_update = {k: v for k, v in result.items() if k not in _EXCLUDED_STATE_KEYS}
         
         # Extract tool calls from sub-agent messages for frontend visualization
         subagent_tool_calls = []
         if "messages" in result:
             subagent_tool_calls = _extract_subagent_tool_calls(result["messages"])
+            # Tool calls extracted, no need to log details
         
         # Create ToolMessage with sub-agent tool calls in additional_kwargs
-        tool_message_content = result["messages"][-1].text if result.get("messages") else ""
+        # Extract content from the last message (could be AIMessage, HumanMessage, etc.)
+        # This content becomes the toolCall.result in the frontend
+        tool_message_content = ""
+        if result.get("messages"):
+            last_msg = result["messages"][-1]
+            # Try different ways to get content
+            if hasattr(last_msg, "content"):
+                tool_message_content = last_msg.content
+            elif hasattr(last_msg, "text"):
+                tool_message_content = last_msg.text
+            elif isinstance(last_msg, dict):
+                tool_message_content = last_msg.get("content", last_msg.get("text", ""))
+            else:
+                tool_message_content = str(last_msg)
+        
+        # If we have multiple messages, try to get a summary or the final output
+        # The last message should be the final response from the sub-agent
+        if not tool_message_content and result.get("messages"):
+            # Try to get content from any message
+            for msg in reversed(result["messages"]):
+                if hasattr(msg, "content") and msg.content:
+                    tool_message_content = msg.content
+                    break
+                elif hasattr(msg, "text") and msg.text:
+                    tool_message_content = msg.text
+                    break
+        
+        import logging
+        logging.info(
+            f"[SubAgent] _return_command_with_state_update: Tool message content length={len(tool_message_content)}, "
+            f"has_tool_calls={len(subagent_tool_calls) > 0}, subagent_type={subagent_type}"
+        )
         
         # Include sub-agent tool calls in the message metadata for frontend
+        # This is critical - the frontend reads subagent_tool_calls from additional_kwargs
         additional_kwargs = {}
         if subagent_tool_calls:
             additional_kwargs["subagent_tool_calls"] = subagent_tool_calls
         if subagent_type:
             additional_kwargs["subagent_type"] = subagent_type
         
+        # Always set additional_kwargs as a dict (even if empty) to ensure it's preserved
+        # Some serializers might drop None values
         tool_message = ToolMessage(
             content=tool_message_content,
             tool_call_id=tool_call_id,
-            additional_kwargs=additional_kwargs if additional_kwargs else None,
+            additional_kwargs=additional_kwargs,  # Always pass dict, never None
         )
         
-        return Command(
-            update={
-                **state_update,
-                "messages": [tool_message],
-            }
+        logging.info(
+            f"[SubAgent] Created ToolMessage: content_length={len(tool_message_content)}, "
+            f"has_additional_kwargs={bool(additional_kwargs)}, "
+            f"additional_kwargs_keys={list(additional_kwargs.keys()) if additional_kwargs else []}, "
+            f"tool_call_id={tool_call_id}"
         )
+        
+        # Verify the ToolMessage has additional_kwargs set correctly
+        if hasattr(tool_message, "additional_kwargs"):
+            # additional_kwargs set correctly
+            pass
+        else:
+            logging.warning("[SubAgent] ToolMessage does not have additional_kwargs attribute!")
+        
+        # KEY INSIGHT: Main agent tool calls work because they're in AIMessages that are part of the
+        # main thread's message history. Sub-agent AIMessages are isolated and never added to main thread.
+        # 
+        # Solution: Include sub-agent's AIMessages (with tool_calls) in the main thread's messages,
+        # but mark them with metadata so frontend knows they're from a sub-agent.
+        # This ensures they're serialized/deserialized just like main agent messages.
+        
+        messages_to_add = [tool_message]  # Always include the ToolMessage
+        
+        # Include sub-agent's AIMessages in the main thread so their tool_calls are preserved
+        # Mark them with metadata indicating they're from a sub-agent
+        # IMPORTANT: Remove tool_calls from sub-agent AIMessages before adding to main thread
+        # because those tool_calls are for sub-agent's tools, not main agent's tools.
+        # If we include them, the main agent's model calls will fail with incomplete tool call sequences.
+        if result.get("messages"):
+            for msg in result["messages"]:
+                # Only include AIMessages (they have tool_calls)
+                if isinstance(msg, AIMessage):
+                    # Create a copy of the message without tool_calls to avoid breaking main agent's model calls
+                    # The tool_calls are already stored in subagent_tool_calls_map for frontend access
+                    msg_copy = deepcopy(msg)
+                    # Remove tool_calls to prevent OpenAI API errors
+                    if hasattr(msg_copy, "tool_calls"):
+                        msg_copy.tool_calls = []
+                    # Add metadata to indicate this is from a sub-agent
+                    if not hasattr(msg_copy, "additional_kwargs") or msg_copy.additional_kwargs is None:
+                        msg_copy.additional_kwargs = {}
+                    msg_copy.additional_kwargs["_subagent_source"] = {
+                        "tool_call_id": tool_call_id,
+                        "subagent_type": subagent_type,
+                    }
+                    messages_to_add.append(msg_copy)
+        
+        # Also store sub-agent tool calls in state for reliable frontend access
+        # This is a fallback in case additional_kwargs is not preserved during serialization
+        update_dict = {
+                **state_update,
+            "messages": messages_to_add,  # Include both ToolMessage and sub-agent AIMessages
+        }
+        
+        # Store sub-agent tool calls in state with key: subagent_tool_calls_map
+        # Format: {tool_call_id: {"tool_calls": [...], "subagent_type": ...}}
+        # Merge with accumulated tool calls from streaming to preserve real-time updates
+        tool_calls_map = {}
+        if accumulated_tool_calls_map:
+            # Start with accumulated tool calls from streaming
+            tool_calls_map = accumulated_tool_calls_map.copy()
+        else:
+            # Fallback: get existing map from state_update
+            tool_calls_map = state_update.get("subagent_tool_calls_map", {})
+            if not isinstance(tool_calls_map, dict):
+                tool_calls_map = {}
+        
+        # Merge tool calls from final result (if any) with accumulated ones
+        if subagent_tool_calls:
+            if tool_call_id not in tool_calls_map:
+                tool_calls_map[tool_call_id] = {
+                    "tool_calls": [],
+                    "subagent_type": subagent_type,
+                }
+            # Merge final tool calls (avoid duplicates by ID)
+            existing_ids = {tc.get("id") for tc in tool_calls_map[tool_call_id].get("tool_calls", [])}
+            new_tool_calls = [tc for tc in subagent_tool_calls if tc.get("id") not in existing_ids]
+            tool_calls_map[tool_call_id]["tool_calls"].extend(new_tool_calls)
+        
+        # Always set the map (even if empty) to ensure it's persisted
+        if tool_calls_map:
+            update_dict["subagent_tool_calls_map"] = tool_calls_map
+            
+        
+        return Command(update=update_dict)
 
     def _validate_and_prepare_state(subagent_type: str, description: str, runtime: ToolRuntime) -> tuple[Runnable, dict]:
         """Validate subagent type and prepare state for invocation."""
@@ -413,6 +584,46 @@ def _create_task_tool(
         subagent_state = {k: v for k, v in runtime.state.items() if k not in _EXCLUDED_STATE_KEYS}
         subagent_state["messages"] = [HumanMessage(content=description)]
         return subagent, subagent_state
+    
+    def _get_callbacks_from_runtime(runtime: ToolRuntime) -> list[Any]:
+        """Extract callbacks from runtime config to pass to sub-agents.
+        
+        This ensures Langfuse CallbackHandler receives LLM events from sub-agents
+        so token usage can be tracked.
+        
+        Tries multiple sources:
+        1. runtime.config.callbacks (if available)
+        2. runtime.config.get("callbacks") (if config is a dict)
+        3. Langfuse handler directly (if configured)
+        """
+        callbacks = []
+        try:
+            # Try to get callbacks from runtime config
+            if hasattr(runtime, "config") and runtime.config:
+                if isinstance(runtime.config, dict):
+                    callbacks = runtime.config.get("callbacks", [])
+                elif hasattr(runtime.config, "callbacks"):
+                    callbacks = runtime.config.callbacks or []
+                # Also check configurable.callbacks (LangGraph pattern)
+                if not callbacks and hasattr(runtime.config, "configurable"):
+                    configurable = runtime.config.configurable
+                    if isinstance(configurable, dict):
+                        callbacks = configurable.get("callbacks", [])
+        except Exception:
+            pass
+        
+        # If no callbacks found in runtime, try to get Langfuse handler directly
+        # This ensures Langfuse can track token usage even if callbacks aren't in runtime config
+        if not callbacks:
+            try:
+                from backend.config.langfuse import get_langfuse_handler
+                langfuse_handler = get_langfuse_handler()
+                if langfuse_handler:
+                    callbacks = [langfuse_handler]
+            except Exception:
+                pass
+        
+        return callbacks if isinstance(callbacks, list) else []
 
     # Use custom description if provided, otherwise use default template
     if task_description is None:
@@ -427,11 +638,377 @@ def _create_task_tool(
         runtime: ToolRuntime,
     ) -> str | Command:
         subagent, subagent_state = _validate_and_prepare_state(subagent_type, description, runtime)
-        result = subagent.invoke(subagent_state)
+        # Extract callbacks from runtime config to pass to sub-agent
+        # This ensures Langfuse CallbackHandler receives LLM events from sub-agents
+        callbacks = _get_callbacks_from_runtime(runtime)
+        
         if not runtime.tool_call_id:
             value_error_msg = "Tool call ID is required for subagent invocation"
             raise ValueError(value_error_msg)
-        return _return_command_with_state_update(result, runtime.tool_call_id, subagent_type=subagent_type)
+        
+        # Use stream to get real-time updates from sub-agent (sync version - no await)
+        # Stream with "updates" mode to get state updates as they happen
+        final_result = None
+        accumulated_messages = []
+        seen_message_ids = set()
+        accumulated_tool_calls_map = {}  # Accumulate tool calls during streaming
+        accumulated_tool_calls_map = {}  # Accumulate tool calls during streaming
+        
+        # Use both "updates" and "values" modes to get both incremental updates and full state
+        # "updates" gives us state deltas, "values" gives us full state including messages
+        for chunk in subagent.stream(
+            subagent_state, 
+            config={"callbacks": callbacks} if callbacks else None,
+            stream_mode=["updates", "values"]
+        ):
+            import logging
+            logging.info(
+                f"[SubAgent] task: Received chunk type={type(chunk).__name__}, "
+                f"chunk={chunk if not isinstance(chunk, dict) or len(str(chunk)) < 500 else 'dict (too large)'}"
+            )
+            
+            # When using multiple stream modes, chunks come as (stream_mode, chunk) tuples
+            # Handle both single mode (dict) and multiple modes (tuple) formats
+            stream_mode = None
+            chunk_data = None
+            
+            if isinstance(chunk, tuple) and len(chunk) == 2:
+                # Format: (stream_mode, chunk_data)
+                stream_mode, chunk_data = chunk
+            elif isinstance(chunk, dict):
+                # Single mode: chunk is directly the data
+                chunk_data = chunk
+                stream_mode = "updates"  # Default assumption
+            else:
+                logging.warning(f"[SubAgent] task: Unknown chunk format: type={type(chunk).__name__}, chunk={chunk}")
+                continue
+            
+            # chunk_data should be a dict like {node_name: state_update}
+            if not isinstance(chunk_data, dict):
+                logging.warning(f"[SubAgent] task: chunk_data is not a dict: type={type(chunk_data).__name__}")
+                continue
+            
+            items_to_process = list(chunk_data.items())
+            
+            # Extract messages and tool calls from each update
+            for item in items_to_process:
+                if isinstance(item, tuple) and len(item) == 2:
+                    node_name, state_update = item
+                else:
+                    continue
+                    
+                
+                # Handle both "updates" (state deltas) and "values" (full state) modes
+                # In "values" mode, chunks come as (stream_mode, {node_name: value}) where node_name is the state key
+                # So if node_name is "messages", state_update IS the list of messages
+                # In "updates" mode, state_update is a dict with state deltas
+                if stream_mode == "values" and node_name == "messages":
+                    # In values mode, when node_name is "messages", state_update IS the list of messages
+                    # Handle Overwrite objects that might wrap the messages
+                    messages_raw = state_update
+                    
+                    # Extract actual value if it's wrapped in Overwrite
+                    if isinstance(messages_raw, Overwrite):
+                        new_messages = messages_raw.value if hasattr(messages_raw, "value") else []
+                    elif isinstance(messages_raw, dict) and "__overwrite__" in messages_raw:
+                        # Handle JSON format with __overwrite__ key
+                        new_messages = messages_raw["__overwrite__"]
+                    else:
+                        new_messages = messages_raw if isinstance(messages_raw, list) else []
+                    
+                    if new_messages:
+                            # Filter out messages we've already seen
+                            truly_new_messages = [
+                                msg for msg in new_messages
+                                if hasattr(msg, "id") and msg.id not in seen_message_ids
+                            ]
+                            if not any(hasattr(msg, "id") for msg in new_messages):
+                                truly_new_messages = new_messages
+                            
+                            if truly_new_messages:
+                                for msg in truly_new_messages:
+                                    if hasattr(msg, "id") and msg.id:
+                                        seen_message_ids.add(msg.id)
+                                accumulated_messages.extend(truly_new_messages)
+                                
+                                # Extract tool calls and update state (same as async version)
+                                subagent_tool_calls = _extract_subagent_tool_calls(truly_new_messages)
+                                if subagent_tool_calls or any(isinstance(msg, AIMessage) for msg in truly_new_messages):
+                                    try:
+                                        messages_to_add_to_main = []
+                                        for msg in truly_new_messages:
+                                            if isinstance(msg, AIMessage):
+                                                if not hasattr(msg, "additional_kwargs") or msg.additional_kwargs is None:
+                                                    msg.additional_kwargs = {}
+                                                msg.additional_kwargs["_subagent_source"] = {
+                                                    "tool_call_id": runtime.tool_call_id,
+                                                    "subagent_type": subagent_type,
+                                                }
+                                                messages_to_add_to_main.append(msg)
+                                        
+                                        current_map = {}
+                                        try:
+                                            if hasattr(runtime, "state") and runtime.state:
+                                                current_map = runtime.state.get("subagent_tool_calls_map", {})
+                                                if not isinstance(current_map, dict):
+                                                    current_map = {}
+                                        except Exception:
+                                            pass
+                                        
+                                        if subagent_tool_calls:
+                                            if runtime.tool_call_id not in current_map:
+                                                current_map[runtime.tool_call_id] = {
+                                                    "tool_calls": [],
+                                                    "subagent_type": subagent_type,
+                                                }
+                                            existing_ids = {tc.get("id") for tc in current_map[runtime.tool_call_id].get("tool_calls", [])}
+                                            new_tool_calls = [tc for tc in subagent_tool_calls if tc.get("id") not in existing_ids]
+                                            current_map[runtime.tool_call_id]["tool_calls"].extend(new_tool_calls)
+                                        
+                                        if hasattr(runtime, "stream_writer") and runtime.stream_writer:
+                                            try:
+                                                stream_update = {
+                                                    f"subagent_{subagent_type}_{node_name}": {
+                                                        "messages": messages_to_add_to_main,
+                                                        "subagent_tool_calls_map": current_map,
+                                                    }
+                                                }
+                                                runtime.stream_writer(stream_update)
+                                                logging.info(
+                                                    f"[SubAgent] task: Streaming update from values mode: "
+                                                    f"Added {len(messages_to_add_to_main)} messages, "
+                                                    f"{len(subagent_tool_calls)} tool calls"
+                                                )
+                                            except Exception as e:
+                                                logging.warning(f"Failed to forward sub-agent streaming update: {e}", exc_info=True)
+                                    except Exception as e:
+                                        logging.error(f"Failed to update state during sub-agent streaming: {e}", exc_info=True)
+                    
+                    # Handle "updates" mode (state deltas)
+                    elif stream_mode == "updates" and isinstance(state_update, dict) and "messages" in state_update:
+                    # Get new messages from this update
+                    # Note: state_update["messages"] might be the full list or just new messages
+                    # We need to track which messages we've already seen
+                        # Handle Overwrite objects that might wrap the messages
+                        messages_raw = state_update.get("messages", [])
+                        
+                        # Extract actual value if it's wrapped in Overwrite
+                        if isinstance(messages_raw, Overwrite):
+                            new_messages = messages_raw.value if hasattr(messages_raw, "value") else []
+                        elif isinstance(messages_raw, dict) and "__overwrite__" in messages_raw:
+                            # Handle JSON format with __overwrite__ key
+                            new_messages = messages_raw["__overwrite__"]
+                        else:
+                            new_messages = messages_raw if isinstance(messages_raw, list) else []
+                        
+                    if new_messages:
+                        # Filter out messages we've already seen (to avoid duplicates)
+                        truly_new_messages = [
+                            msg for msg in new_messages
+                            if hasattr(msg, "id") and msg.id not in seen_message_ids
+                        ]
+                        
+                        # If no IDs, assume all are new (for backwards compatibility)
+                        if not any(hasattr(msg, "id") for msg in new_messages):
+                            truly_new_messages = new_messages
+                        
+                        if truly_new_messages:
+                            # Track message IDs to avoid duplicates
+                            for msg in truly_new_messages:
+                                if hasattr(msg, "id") and msg.id:
+                                    seen_message_ids.add(msg.id)
+                            
+                            # Add to accumulated messages
+                            accumulated_messages.extend(truly_new_messages)
+                            
+                            # Extract tool calls from new messages
+                            subagent_tool_calls = _extract_subagent_tool_calls(truly_new_messages)
+                            
+                            # Update state during streaming so frontend sees tool calls and results in real-time
+                            # Stream ALL message types (AIMessages with tool_calls AND ToolMessages with results)
+                            # Just like main agent: AIMessage → tool calls appear, ToolMessage → status updates to completed
+                            if subagent_tool_calls or any(isinstance(msg, (AIMessage, ToolMessage)) for msg in truly_new_messages):
+                                try:
+                                    # Create messages WITH tool_calls/results for real-time display (via stream_writer)
+                                    # These will appear in stream.messages and show tool calls/results as they happen
+                                    messages_with_tool_calls_for_display = []
+                                    # Create messages WITHOUT tool_calls for main agent's message history
+                                    messages_without_tool_calls_for_history = []
+                                    
+                                    for msg in truly_new_messages:
+                                        if isinstance(msg, AIMessage):
+                                            # Message WITH tool_calls for display (frontend will see this in stream.messages)
+                                            msg_with_tool_calls = deepcopy(msg)
+                                            # Keep tool_calls for display
+                                            if not hasattr(msg_with_tool_calls, "additional_kwargs") or msg_with_tool_calls.additional_kwargs is None:
+                                                msg_with_tool_calls.additional_kwargs = {}
+                                            msg_with_tool_calls.additional_kwargs["_subagent_source"] = {
+                                                "tool_call_id": runtime.tool_call_id,
+                                            "subagent_type": subagent_type,
+                                            }
+                                            messages_with_tool_calls_for_display.append(msg_with_tool_calls)
+                                            
+                                            # Message WITHOUT tool_calls for main agent's history (prevents OpenAI errors)
+                                            msg_without_tool_calls = deepcopy(msg)
+                                            if hasattr(msg_without_tool_calls, "tool_calls"):
+                                                msg_without_tool_calls.tool_calls = []
+                                            if not hasattr(msg_without_tool_calls, "additional_kwargs") or msg_without_tool_calls.additional_kwargs is None:
+                                                msg_without_tool_calls.additional_kwargs = {}
+                                            msg_without_tool_calls.additional_kwargs["_subagent_source"] = {
+                                            "tool_call_id": runtime.tool_call_id,
+                                                "subagent_type": subagent_type,
+                                            }
+                                            messages_without_tool_calls_for_history.append(msg_without_tool_calls)
+                                        elif isinstance(msg, ToolMessage):
+                                            # ToolMessages contain results - stream them IMMEDIATELY, one at a time
+                                            # Just like main agent: each ToolMessage is added to state as soon as the tool completes
+                                            # This ensures real-time status updates, not batched at the end
+                                            msg_copy = deepcopy(msg)
+                                            # Add metadata to indicate this is from a sub-agent
+                                            if not hasattr(msg_copy, "additional_kwargs") or msg_copy.additional_kwargs is None:
+                                                msg_copy.additional_kwargs = {}
+                                            msg_copy.additional_kwargs["_subagent_source"] = {
+                                                "tool_call_id": runtime.tool_call_id,
+                                                "subagent_type": subagent_type,
+                                            }
+                                            # Include ToolMessages in both display and history (they don't have tool_calls)
+                                            messages_with_tool_calls_for_display.append(msg_copy)
+                                            messages_without_tool_calls_for_history.append(msg_copy)
+                                            
+                                            # Stream this ToolMessage IMMEDIATELY (like main agent does)
+                                            # Don't wait for other messages - stream as soon as tool completes
+                                            # In sync function, no need to yield control - streaming happens synchronously
+                                            if hasattr(runtime, "stream_writer") and runtime.stream_writer:
+                                                try:
+                                                    # Get current map for this tool_call_id
+                                                    # Use a unique context copy to avoid mutating shared state
+                                                    current_map_for_tool = accumulated_tool_calls_map.copy()
+                                                    try:
+                                                        if hasattr(runtime, "state") and runtime.state:
+                                                            state_map = runtime.state.get("subagent_tool_calls_map", {})
+                                                            if isinstance(state_map, dict):
+                                                                for key, value in state_map.items():
+                                                                    if key not in current_map_for_tool:
+                                                                        current_map_for_tool[key] = value
+                                                    except Exception:
+                                                        pass
+                                                    
+                                                    # Stream this single ToolMessage immediately
+                                                    stream_update_immediate = {
+                                                        "messages": [msg_copy],  # Stream this ONE ToolMessage immediately
+                                                        "subagent_tool_calls_map": current_map_for_tool,
+                                                    }
+                                                    runtime.stream_writer(stream_update_immediate)
+                                                except Exception as e:
+                                                    import logging
+                                                    logging.warning(f"Failed to stream ToolMessage immediately: {e}", exc_info=True)
+                                    
+                                    # Get current subagent_tool_calls_map from accumulated map and state
+                                    # Use a unique context copy to avoid mutating shared state
+                                    current_map = accumulated_tool_calls_map.copy()
+                                    try:
+                                        if hasattr(runtime, "state") and runtime.state:
+                                            state_map = runtime.state.get("subagent_tool_calls_map", {})
+                                            if isinstance(state_map, dict):
+                                                # Merge state map into current_map
+                                                for key, value in state_map.items():
+                                                    if key not in current_map:
+                                                        current_map[key] = value
+                                    except Exception:
+                                        pass
+                                    
+                                    # Merge new tool calls into map
+                                    has_new_tool_calls = False
+                                    if subagent_tool_calls:
+                                        if runtime.tool_call_id not in current_map:
+                                            current_map[runtime.tool_call_id] = {
+                                                "tool_calls": [],
+                                                "subagent_type": subagent_type,
+                                            }
+                                        # Append new tool calls (avoid duplicates by ID)
+                                        existing_ids = {tc.get("id") for tc in current_map[runtime.tool_call_id].get("tool_calls", [])}
+                                        new_tool_calls = [tc for tc in subagent_tool_calls if tc.get("id") not in existing_ids]
+                                        if new_tool_calls:
+                                            has_new_tool_calls = True
+                                            current_map[runtime.tool_call_id]["tool_calls"].extend(new_tool_calls)
+                                            # Update accumulated map for final state update
+                                            accumulated_tool_calls_map = current_map.copy()
+                                    
+                                    # Use stream_writer to add messages WITH tool_calls/results to the messages state
+                                    # This makes sub-agent tool calls AND results appear in stream.messages in real-time
+                                    # AIMessages show tool calls as "pending", ToolMessages update them to "completed"
+                                    # CRITICAL: ToolMessages are already streamed individually above, so only stream AIMessages here
+                                    # This prevents duplicate ToolMessages and ensures real-time updates like the main agent
+                                    ai_messages_only = [m for m in messages_with_tool_calls_for_display if isinstance(m, AIMessage)]
+                                    if (ai_messages_only and hasattr(runtime, "stream_writer") and runtime.stream_writer) and has_new_tool_calls:
+                                        try:
+                                            # Stream AIMessages with tool_calls (ToolMessages are already streamed individually above)
+                                            # This matches main agent behavior: AIMessage appears first, then ToolMessages appear one by one
+                                            stream_update = {
+                                                "messages": ai_messages_only,  # Only AIMessages (ToolMessages streamed individually)
+                                                "subagent_tool_calls_map": current_map,  # Also send the map as backup
+                                            }
+                                            import logging
+                                            logging.info(
+                                                f"[SubAgent] Streaming AIMessages with tool_calls: tool_call_id={runtime.tool_call_id}, "
+                                                f"ai_messages_count={len(ai_messages_only)}, "
+                                                f"new_tool_calls_count={len(new_tool_calls) if has_new_tool_calls else 0}, "
+                                                f"total_tool_calls_count={len(current_map.get(runtime.tool_call_id, {}).get('tool_calls', []))}"
+                                            )
+                                            runtime.stream_writer(stream_update)
+                                        except Exception as e:
+                                            import logging
+                                            logging.warning(f"Failed to forward sub-agent streaming update: {e}", exc_info=True)
+                                    
+                                    # Store messages WITHOUT tool_calls for final state update (for main agent's history)
+                                    # These will be added to the main thread's message history at the end to avoid OpenAI errors
+                                    if messages_without_tool_calls_for_history:
+                                        # Replace accumulated messages with versions without tool_calls for this tool_call_id
+                                        # This ensures the main agent's history doesn't have incomplete tool call sequences
+                                        pass  # We'll handle this in the final state update
+                                except Exception as e:
+                                    import logging
+                                    logging.error(f"Failed to update state during sub-agent streaming: {e}", exc_info=True)
+                
+                # Track final result (merge with accumulated state)
+                if isinstance(state_update, dict):
+                    if final_result is None:
+                        final_result = state_update.copy()
+                    else:
+                        # Merge state updates (messages will be handled separately)
+                        for key, value in state_update.items():
+                            if key != "messages":
+                                final_result[key] = value
+                    
+                    # Update final result with accumulated messages
+                    if accumulated_messages:
+                        final_result["messages"] = accumulated_messages
+        
+        # If we didn't get a final result, use the last state update
+        if final_result is None:
+            # Fallback to invoke if streaming didn't work
+            final_result = subagent.invoke(subagent_state, config={"callbacks": callbacks} if callbacks else None)
+        
+        # Ensure messages are in final_result
+        if final_result and "messages" not in final_result:
+            if accumulated_messages:
+                final_result["messages"] = accumulated_messages
+            else:
+                # If no accumulated messages, try to get from final_result state
+                import logging
+                logging.warning(
+                    f"[SubAgent] task: No messages in final_result and no accumulated_messages. "
+                    f"final_result keys: {list(final_result.keys()) if isinstance(final_result, dict) else 'not a dict'}"
+                )
+        
+        import logging
+        logging.info(
+            f"[SubAgent] task: Final result has {len(final_result.get('messages', []))} messages, "
+            f"accumulated_messages has {len(accumulated_messages)} messages, "
+            f"subagent_type={subagent_type}, tool_call_id={runtime.tool_call_id}"
+        )
+        
+        return _return_command_with_state_update(final_result, runtime.tool_call_id, subagent_type=subagent_type, accumulated_tool_calls_map=accumulated_tool_calls_map)
 
     async def atask(
         description: str,
@@ -439,11 +1016,435 @@ def _create_task_tool(
         runtime: ToolRuntime,
     ) -> str | Command:
         subagent, subagent_state = _validate_and_prepare_state(subagent_type, description, runtime)
-        result = await subagent.ainvoke(subagent_state)
+        # Extract callbacks from runtime config to pass to sub-agent
+        # This ensures Langfuse CallbackHandler receives LLM events from sub-agents
+        callbacks = _get_callbacks_from_runtime(runtime)
+        
         if not runtime.tool_call_id:
             value_error_msg = "Tool call ID is required for subagent invocation"
             raise ValueError(value_error_msg)
-        return _return_command_with_state_update(result, runtime.tool_call_id, subagent_type=subagent_type)
+        
+        # Use astream to get real-time updates from sub-agent
+        # Stream with "updates" mode to get state updates as they happen
+        final_result = None
+        accumulated_messages = []
+        seen_message_ids = set()
+        accumulated_tool_calls_map = {}  # Accumulate tool calls during streaming
+        
+        # Use both "updates" and "values" modes to get both incremental updates and full state
+        # "updates" gives us state deltas, "values" gives us full state including messages
+        async for chunk in subagent.astream(
+            subagent_state, 
+            config={"callbacks": callbacks} if callbacks else None,
+            stream_mode=["updates", "values"]
+        ):
+            import logging
+            logging.info(
+                f"[SubAgent] atask: Received chunk type={type(chunk).__name__}, "
+                f"chunk={chunk if not isinstance(chunk, dict) or len(str(chunk)) < 500 else 'dict (too large)'}"
+            )
+            
+            # When using multiple stream modes, chunks come as (stream_mode, chunk) tuples
+            # Handle both single mode (dict) and multiple modes (tuple) formats
+            stream_mode = None
+            chunk_data = None
+            
+            if isinstance(chunk, tuple) and len(chunk) == 2:
+                # Format: (stream_mode, chunk_data)
+                stream_mode, chunk_data = chunk
+            elif isinstance(chunk, dict):
+                # Single mode: chunk is directly the data
+                chunk_data = chunk
+                stream_mode = "updates"  # Default assumption
+            else:
+                logging.warning(f"[SubAgent] atask: Unknown chunk format: type={type(chunk).__name__}, chunk={chunk}")
+                continue
+            
+            # chunk_data should be a dict like {node_name: state_update}
+            if not isinstance(chunk_data, dict):
+                logging.warning(f"[SubAgent] atask: chunk_data is not a dict: type={type(chunk_data).__name__}")
+                continue
+            
+            items_to_process = list(chunk_data.items())
+            
+            # Extract messages and tool calls from each update
+            # In "values" mode, we get full state; in "updates" mode, we get state deltas
+            for item in items_to_process:
+                if isinstance(item, tuple) and len(item) == 2:
+                    node_name, state_update = item
+                else:
+                    continue
+                    
+                
+                # Handle both "updates" (state deltas) and "values" (full state) modes
+                # In "values" mode, chunks come as (stream_mode, {node_name: value}) where node_name is the state key
+                # So if node_name is "messages", state_update IS the list of messages
+                # In "updates" mode, state_update is a dict with state deltas
+                if stream_mode == "values" and node_name == "messages":
+                    # In values mode, when node_name is "messages", state_update IS the list of messages
+                    # Handle Overwrite objects that might wrap the messages
+                    messages_raw = state_update
+                    
+                    # Extract actual value if it's wrapped in Overwrite
+                    if isinstance(messages_raw, Overwrite):
+                        new_messages = messages_raw.value if hasattr(messages_raw, "value") else []
+                    elif isinstance(messages_raw, dict) and "__overwrite__" in messages_raw:
+                        # Handle JSON format with __overwrite__ key
+                        new_messages = messages_raw["__overwrite__"]
+                    else:
+                        new_messages = messages_raw if isinstance(messages_raw, list) else []
+                    
+                    if new_messages:
+                        # Filter out messages we've already seen
+                        truly_new_messages = [
+                            msg for msg in new_messages
+                            if hasattr(msg, "id") and msg.id not in seen_message_ids
+                        ]
+                        
+                        # If no IDs, assume all are new
+                        if not any(hasattr(msg, "id") for msg in new_messages):
+                            truly_new_messages = new_messages
+                        
+                        if truly_new_messages:
+                            # Track message IDs
+                            for msg in truly_new_messages:
+                                if hasattr(msg, "id") and msg.id:
+                                    seen_message_ids.add(msg.id)
+                            
+                            # Add to accumulated messages
+                            accumulated_messages.extend(truly_new_messages)
+                            
+                            # Extract tool calls and update state during streaming
+                            subagent_tool_calls = _extract_subagent_tool_calls(truly_new_messages)
+                            
+                            # ALWAYS send updates for new messages to enable real-time streaming
+                            # This ensures frontend sees messages as they arrive, not just at the end
+                            try:
+                                # Create messages WITH tool_calls for real-time display (via stream_writer)
+                                # These will appear in stream.messages and show tool calls as they happen
+                                messages_with_tool_calls_for_display = []
+                                # Create messages WITHOUT tool_calls for main agent's message history
+                                messages_without_tool_calls_for_history = []
+                                
+                                for msg in truly_new_messages:
+                                    if isinstance(msg, AIMessage):
+                                        # Message WITH tool_calls for display (frontend will see this in stream.messages)
+                                        msg_with_tool_calls = deepcopy(msg)
+                                        # Keep tool_calls for display
+                                        if not hasattr(msg_with_tool_calls, "additional_kwargs") or msg_with_tool_calls.additional_kwargs is None:
+                                            msg_with_tool_calls.additional_kwargs = {}
+                                        msg_with_tool_calls.additional_kwargs["_subagent_source"] = {
+                                            "tool_call_id": runtime.tool_call_id,
+                                            "subagent_type": subagent_type,
+                                        }
+                                        messages_with_tool_calls_for_display.append(msg_with_tool_calls)
+                                        
+                                        # Message WITHOUT tool_calls for main agent's history (prevents OpenAI errors)
+                                        msg_without_tool_calls = deepcopy(msg)
+                                        if hasattr(msg_without_tool_calls, "tool_calls"):
+                                            msg_without_tool_calls.tool_calls = []
+                                        if not hasattr(msg_without_tool_calls, "additional_kwargs") or msg_without_tool_calls.additional_kwargs is None:
+                                            msg_without_tool_calls.additional_kwargs = {}
+                                        msg_without_tool_calls.additional_kwargs["_subagent_source"] = {
+                                            "tool_call_id": runtime.tool_call_id,
+                                            "subagent_type": subagent_type,
+                                        }
+                                        messages_without_tool_calls_for_history.append(msg_without_tool_calls)
+                                
+                                # Get current subagent_tool_calls_map from accumulated map and state
+                                current_map = accumulated_tool_calls_map.copy()
+                                try:
+                                    if hasattr(runtime, "state") and runtime.state:
+                                        state_map = runtime.state.get("subagent_tool_calls_map", {})
+                                        if isinstance(state_map, dict):
+                                            # Merge state map into current_map
+                                            for key, value in state_map.items():
+                                                if key not in current_map:
+                                                    current_map[key] = value
+                                except Exception:
+                                    pass
+                                
+                                # Merge new tool calls into map
+                                has_new_tool_calls = False
+                                if subagent_tool_calls:
+                                    if runtime.tool_call_id not in current_map:
+                                        current_map[runtime.tool_call_id] = {
+                                            "tool_calls": [],
+                                            "subagent_type": subagent_type,
+                                        }
+                                    # Append new tool calls (avoid duplicates by ID)
+                                    existing_ids = {tc.get("id") for tc in current_map[runtime.tool_call_id].get("tool_calls", [])}
+                                    new_tool_calls = [tc for tc in subagent_tool_calls if tc.get("id") not in existing_ids]
+                                    if new_tool_calls:
+                                        has_new_tool_calls = True
+                                        current_map[runtime.tool_call_id]["tool_calls"].extend(new_tool_calls)
+                                        # Update accumulated map for final state update
+                                        accumulated_tool_calls_map = current_map.copy()
+                                
+                                # Use stream_writer to add messages WITH tool_calls/results to the messages state
+                                # This makes sub-agent tool calls AND results appear in stream.messages in real-time
+                                # AIMessages show tool calls as "pending", ToolMessages update them to "completed"
+                                # CRITICAL: Stream ToolMessages immediately when they arrive, even if there are no new tool calls
+                                # This ensures tool call status updates in real-time as each tool completes
+                                has_tool_messages = any(isinstance(m, ToolMessage) for m in messages_with_tool_calls_for_display)
+                                if (messages_with_tool_calls_for_display and hasattr(runtime, "stream_writer") and runtime.stream_writer) and (has_new_tool_calls or has_tool_messages):
+                                    try:
+                                        # Add messages WITH tool_calls/results to the messages state for real-time display
+                                        # These will appear in stream.messages and the frontend will:
+                                        # 1. Extract tool calls from AIMessages (status: "pending")
+                                        # 2. Update tool call status when ToolMessages arrive (status: "completed")
+                                        stream_update = {
+                                            "messages": messages_with_tool_calls_for_display,  # Messages WITH tool_calls/results for real-time display
+                                            "subagent_tool_calls_map": current_map,  # Also send the map as backup
+                                        }
+                                        import logging
+                                        logging.info(
+                                            f"[SubAgent] atask: Streaming messages (AIMessages + ToolMessages) from values mode: "
+                                            f"tool_call_id={runtime.tool_call_id}, "
+                                            f"messages_count={len(messages_with_tool_calls_for_display)}, "
+                                            f"ai_messages={sum(1 for m in messages_with_tool_calls_for_display if isinstance(m, AIMessage))}, "
+                                            f"tool_messages={sum(1 for m in messages_with_tool_calls_for_display if isinstance(m, ToolMessage))}, "
+                                            f"has_tool_messages={has_tool_messages}, "
+                                            f"new_tool_calls_count={len(new_tool_calls) if has_new_tool_calls else 0}, "
+                                            f"total_tool_calls_count={len(current_map.get(runtime.tool_call_id, {}).get('tool_calls', []))}"
+                                        )
+                                        runtime.stream_writer(stream_update)
+                                    except Exception as e:
+                                        import logging
+                                        logging.warning(f"Failed to forward sub-agent streaming update: {e}", exc_info=True)
+                                
+                                # Store messages WITHOUT tool_calls for final state update (for main agent's history)
+                                # These will be added to the main thread's message history at the end to avoid OpenAI errors
+                                if messages_without_tool_calls_for_history:
+                                    # Replace accumulated messages with versions without tool_calls for this tool_call_id
+                                    # This ensures the main agent's history doesn't have incomplete tool call sequences
+                                    pass  # We'll handle this in the final state update
+                            except Exception as e:
+                                import logging
+                                logging.error(f"Failed to update state during sub-agent streaming: {e}", exc_info=True)
+                    
+                    # Handle "updates" mode (state deltas)
+                    elif stream_mode == "updates" and isinstance(state_update, dict) and "messages" in state_update:
+                    # Get new messages from this update
+                    # Note: state_update["messages"] might be the full list or just new messages
+                    # We need to track which messages we've already seen
+                        # Handle Overwrite objects that might wrap the messages
+                        messages_raw = state_update.get("messages", [])
+                        
+                        # Extract actual value if it's wrapped in Overwrite
+                        if isinstance(messages_raw, Overwrite):
+                            new_messages = messages_raw.value if hasattr(messages_raw, "value") else []
+                        elif isinstance(messages_raw, dict) and "__overwrite__" in messages_raw:
+                            # Handle JSON format with __overwrite__ key
+                            new_messages = messages_raw["__overwrite__"]
+                        else:
+                            new_messages = messages_raw if isinstance(messages_raw, list) else []
+                        
+                    if new_messages:
+                        # Filter out messages we've already seen (to avoid duplicates)
+                        truly_new_messages = [
+                            msg for msg in new_messages
+                            if hasattr(msg, "id") and msg.id not in seen_message_ids
+                        ]
+                        
+                        # If no IDs, assume all are new (for backwards compatibility)
+                        if not any(hasattr(msg, "id") for msg in new_messages):
+                            truly_new_messages = new_messages
+                        
+                        if truly_new_messages:
+                            # Track message IDs to avoid duplicates
+                            for msg in truly_new_messages:
+                                if hasattr(msg, "id") and msg.id:
+                                    seen_message_ids.add(msg.id)
+                            
+                            # Add to accumulated messages
+                            accumulated_messages.extend(truly_new_messages)
+                            
+                            # Extract tool calls from new messages
+                            subagent_tool_calls = _extract_subagent_tool_calls(truly_new_messages)
+                            
+                            # Update state during streaming so frontend sees tool calls and results in real-time
+                            # Stream ALL message types (AIMessages with tool_calls AND ToolMessages with results)
+                            # Just like main agent: AIMessage → tool calls appear, ToolMessage → status updates to completed
+                            if subagent_tool_calls or any(isinstance(msg, (AIMessage, ToolMessage)) for msg in truly_new_messages):
+                                try:
+                                    # Create messages WITH tool_calls/results for real-time display (via stream_writer)
+                                    # These will appear in stream.messages and show tool calls/results as they happen
+                                    messages_with_tool_calls_for_display = []
+                                    # Create messages WITHOUT tool_calls for main agent's message history
+                                    messages_without_tool_calls_for_history = []
+                                    
+                                    for msg in truly_new_messages:
+                                        if isinstance(msg, AIMessage):
+                                            # Message WITH tool_calls for display (frontend will see this in stream.messages)
+                                            msg_with_tool_calls = deepcopy(msg)
+                                            # Keep tool_calls for display
+                                            if not hasattr(msg_with_tool_calls, "additional_kwargs") or msg_with_tool_calls.additional_kwargs is None:
+                                                msg_with_tool_calls.additional_kwargs = {}
+                                            msg_with_tool_calls.additional_kwargs["_subagent_source"] = {
+                                                "tool_call_id": runtime.tool_call_id,
+                                            "subagent_type": subagent_type,
+                                            }
+                                            messages_with_tool_calls_for_display.append(msg_with_tool_calls)
+                                            
+                                            # Message WITHOUT tool_calls for main agent's history (prevents OpenAI errors)
+                                            msg_without_tool_calls = deepcopy(msg)
+                                            if hasattr(msg_without_tool_calls, "tool_calls"):
+                                                msg_without_tool_calls.tool_calls = []
+                                            if not hasattr(msg_without_tool_calls, "additional_kwargs") or msg_without_tool_calls.additional_kwargs is None:
+                                                msg_without_tool_calls.additional_kwargs = {}
+                                            msg_without_tool_calls.additional_kwargs["_subagent_source"] = {
+                                            "tool_call_id": runtime.tool_call_id,
+                                                "subagent_type": subagent_type,
+                                            }
+                                            messages_without_tool_calls_for_history.append(msg_without_tool_calls)
+                                        elif isinstance(msg, ToolMessage):
+                                            # ToolMessages contain results - stream them IMMEDIATELY, one at a time
+                                            # Just like main agent: each ToolMessage is added to state as soon as the tool completes
+                                            # This ensures real-time status updates, not batched at the end
+                                            msg_copy = deepcopy(msg)
+                                            # Add metadata to indicate this is from a sub-agent
+                                            if not hasattr(msg_copy, "additional_kwargs") or msg_copy.additional_kwargs is None:
+                                                msg_copy.additional_kwargs = {}
+                                            msg_copy.additional_kwargs["_subagent_source"] = {
+                                                "tool_call_id": runtime.tool_call_id,
+                                                "subagent_type": subagent_type,
+                                            }
+                                            # Include ToolMessages in both display and history (they don't have tool_calls)
+                                            messages_with_tool_calls_for_display.append(msg_copy)
+                                            messages_without_tool_calls_for_history.append(msg_copy)
+                                            
+                                            # Stream this ToolMessage IMMEDIATELY (like main agent does)
+                                            # Don't wait for other messages - stream as soon as tool completes
+                                            # Use asyncio.sleep(0) to yield control and ensure each ToolMessage is processed separately
+                                            if hasattr(runtime, "stream_writer") and runtime.stream_writer:
+                                                try:
+                                                    # Get current map for this tool_call_id
+                                                    current_map_for_tool = accumulated_tool_calls_map.copy()
+                                                    try:
+                                                        if hasattr(runtime, "state") and runtime.state:
+                                                            state_map = runtime.state.get("subagent_tool_calls_map", {})
+                                                            if isinstance(state_map, dict):
+                                                                for key, value in state_map.items():
+                                                                    if key not in current_map_for_tool:
+                                                                        current_map_for_tool[key] = value
+                                                    except Exception:
+                                                        pass
+                                                    
+                                                    # Stream this single ToolMessage immediately
+                                                    stream_update_immediate = {
+                                                        "messages": [msg_copy],  # Stream this ONE ToolMessage immediately
+                                                        "subagent_tool_calls_map": current_map_for_tool,
+                                                    }
+                                                    runtime.stream_writer(stream_update_immediate)
+                                                    
+                                                    # Yield control to ensure this ToolMessage is processed before the next one
+                                                    # This ensures real-time streaming like the main agent
+                                                    import asyncio
+                                                    await asyncio.sleep(0)
+                                                except Exception as e:
+                                                    import logging
+                                                    logging.warning(f"Failed to stream ToolMessage immediately: {e}", exc_info=True)
+                                    
+                                    # Get current subagent_tool_calls_map from accumulated map and state
+                                    current_map = accumulated_tool_calls_map.copy()
+                                    try:
+                                        if hasattr(runtime, "state") and runtime.state:
+                                            state_map = runtime.state.get("subagent_tool_calls_map", {})
+                                            if isinstance(state_map, dict):
+                                                # Merge state map into current_map
+                                                for key, value in state_map.items():
+                                                    if key not in current_map:
+                                                        current_map[key] = value
+                                    except Exception:
+                                        pass
+                                    
+                                    # Merge new tool calls into map
+                                    has_new_tool_calls = False
+                                    if subagent_tool_calls:
+                                        if runtime.tool_call_id not in current_map:
+                                            current_map[runtime.tool_call_id] = {
+                                                "tool_calls": [],
+                                                "subagent_type": subagent_type,
+                                            }
+                                        # Append new tool calls (avoid duplicates by ID)
+                                        existing_ids = {tc.get("id") for tc in current_map[runtime.tool_call_id].get("tool_calls", [])}
+                                        new_tool_calls = [tc for tc in subagent_tool_calls if tc.get("id") not in existing_ids]
+                                        if new_tool_calls:
+                                            has_new_tool_calls = True
+                                            current_map[runtime.tool_call_id]["tool_calls"].extend(new_tool_calls)
+                                            # Update accumulated map for final state update
+                                            accumulated_tool_calls_map = current_map.copy()
+                                    
+                                    # Use stream_writer to add messages WITH tool_calls/results to the messages state
+                                    # This makes sub-agent tool calls AND results appear in stream.messages in real-time
+                                    # AIMessages show tool calls as "pending", ToolMessages update them to "completed"
+                                    # CRITICAL: ToolMessages are already streamed individually above, so only stream AIMessages here
+                                    # This prevents duplicate ToolMessages and ensures real-time updates like the main agent
+                                    ai_messages_only = [m for m in messages_with_tool_calls_for_display if isinstance(m, AIMessage)]
+                                    if (ai_messages_only and hasattr(runtime, "stream_writer") and runtime.stream_writer) and has_new_tool_calls:
+                                        try:
+                                            # Stream AIMessages with tool_calls (ToolMessages are already streamed individually above)
+                                            # This matches main agent behavior: AIMessage appears first, then ToolMessages appear one by one
+                                            stream_update = {
+                                                "messages": ai_messages_only,  # Only AIMessages (ToolMessages streamed individually)
+                                                "subagent_tool_calls_map": current_map,  # Also send the map as backup
+                                            }
+                                            import logging
+                                            logging.info(
+                                                f"[SubAgent] Streaming AIMessages with tool_calls: tool_call_id={runtime.tool_call_id}, "
+                                                f"ai_messages_count={len(ai_messages_only)}, "
+                                                f"new_tool_calls_count={len(new_tool_calls) if has_new_tool_calls else 0}, "
+                                                f"total_tool_calls_count={len(current_map.get(runtime.tool_call_id, {}).get('tool_calls', []))}"
+                                            )
+                                            runtime.stream_writer(stream_update)
+                                        except Exception as e:
+                                            import logging
+                                            logging.warning(f"Failed to forward sub-agent streaming update: {e}", exc_info=True)
+                                    
+                                    # Store messages WITHOUT tool_calls for final state update (for main agent's history)
+                                    # These will be added to the main thread's message history at the end to avoid OpenAI errors
+                                    if messages_without_tool_calls_for_history:
+                                        # Replace accumulated messages with versions without tool_calls for this tool_call_id
+                                        # This ensures the main agent's history doesn't have incomplete tool call sequences
+                                        pass  # We'll handle this in the final state update
+                                except Exception as e:
+                                    import logging
+                                    logging.error(f"Failed to update state during sub-agent streaming: {e}", exc_info=True)
+                
+                # Track final result (merge with accumulated state)
+                if isinstance(state_update, dict):
+                    if final_result is None:
+                        final_result = state_update.copy()
+                    else:
+                        # Merge state updates (messages will be handled separately)
+                        for key, value in state_update.items():
+                            if key != "messages":
+                                final_result[key] = value
+                    
+                    # Update final result with accumulated messages
+                    if accumulated_messages:
+                        final_result["messages"] = accumulated_messages
+        
+        # If we didn't get a final result, use the last state update
+        if final_result is None:
+            # Fallback to ainvoke if streaming didn't work
+            final_result = await subagent.ainvoke(subagent_state, config={"callbacks": callbacks} if callbacks else None)
+        
+        # Ensure messages are in final_result
+        if final_result and "messages" not in final_result:
+            if accumulated_messages:
+                final_result["messages"] = accumulated_messages
+            else:
+                # If no accumulated messages, try to get from final_result state
+                import logging
+                logging.warning(
+                    f"[SubAgent] atask: No messages in final_result and no accumulated_messages. "
+                    f"final_result keys: {list(final_result.keys()) if isinstance(final_result, dict) else 'not a dict'}"
+                )
+        
+        
+        return _return_command_with_state_update(final_result, runtime.tool_call_id, subagent_type=subagent_type, accumulated_tool_calls_map=accumulated_tool_calls_map)
 
     return StructuredTool.from_function(
         name="task",

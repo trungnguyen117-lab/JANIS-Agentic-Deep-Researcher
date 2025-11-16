@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Settings } from "lucide-react";
 import styles from "./ModelSelector.module.scss";
 
@@ -14,7 +14,7 @@ interface ModelInfo {
 
 interface ModelSelectorProps {
   onModelChange?: (model: string) => void;
-  tokenUsage?: { input: number; output: number; completion: number; reasoning: number; total: number; cost?: number };
+  tokenUsage?: { input: number; output: number; completion: number; reasoning: number; cache?: number; prompt?: number; total: number; cost?: number };
   availableModels?: ModelInfo[];
   disabled?: boolean; // Disable model selection after first message
 }
@@ -70,12 +70,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
     loadModels();
   }, [availableModels]);
 
-  // Extract model names from loaded models
-  const modelNames = models.length > 0 
-    ? models.map(m => m.name)
-    : availableModels.length > 0
-    ? availableModels.map(m => m.name)
-    : ["gpt-4o"]; // Fallback if no models provided
+  // Extract model names from loaded models (memoized to prevent infinite loops)
+  const modelNames = useMemo(() => {
+    return models.length > 0 
+      ? models.map(m => m.name)
+      : availableModels.length > 0
+      ? availableModels.map(m => m.name)
+      : ["gpt-4o"]; // Fallback if no models provided
+  }, [models, availableModels]);
 
   useEffect(() => {
     // Load saved model from localStorage
@@ -145,7 +147,18 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         <div className={styles.tokenUsage}>
           <span className={styles.tokenLabel}>Tokens:</span>
           <span className={styles.tokenCount}>
-            {formatTokenCount(tokenUsage.input)} in /{" "}
+            <span
+              className={styles.inputTokenCount}
+              title={`Input: ${formatTokenCount(tokenUsage.input)}\n  = Prompt: ${formatTokenCount(tokenUsage.prompt ?? 0)} + Cache: ${formatTokenCount(tokenUsage.cache ?? 0)}`}
+            >
+              {formatTokenCount(tokenUsage.input)} in
+              {tokenUsage.prompt !== undefined && tokenUsage.cache !== undefined && (tokenUsage.prompt > 0 || tokenUsage.cache > 0) && (
+                <span style={{ fontSize: '0.85em', opacity: 0.7 }}>
+                  {" "}({formatTokenCount(tokenUsage.prompt)} prompt + {formatTokenCount(tokenUsage.cache)} cache)
+                </span>
+              )}
+            </span>
+            {" / "}
             <span 
               className={styles.outputTokenCount}
               title={`Output: ${formatTokenCount(tokenUsage.output)}\nCompletion: ${formatTokenCount(tokenUsage.completion)}\nReasoning: ${formatTokenCount(tokenUsage.reasoning)}`}

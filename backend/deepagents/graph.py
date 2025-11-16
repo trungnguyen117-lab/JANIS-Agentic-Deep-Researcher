@@ -24,6 +24,7 @@ from .middleware.subagents import CompiledSubAgent, SubAgent, SubAgentMiddleware
 from .middleware.token_usage_state import TokenUsageStateMiddleware
 from .middleware.models_state import ModelsStateMiddleware
 from .middleware.model_selector_middleware import ModelSelectorMiddleware
+from .middleware.todo_fix import FixedTodoListMiddleware
 
 BASE_AGENT_PROMPT = "In order to complete the objective that the user asks of you, you have access to a number of standard tools."
 
@@ -101,14 +102,14 @@ def create_deep_agent(
         ModelsStateMiddleware(),  # Add available models list to state
         ModelSelectorMiddleware(),  # Handle model selection from frontend (first message only)
         TokenUsageStateMiddleware(),  # Track token usage in LangGraph state
-        TodoListMiddleware(),
+        FixedTodoListMiddleware(),  # Use fixed middleware that supports multiple updates per step
         FilesystemMiddleware(backend=backend),
         SubAgentMiddleware(
             default_model=model,
             default_tools=tools,
             subagents=subagents if subagents is not None else [],
             default_middleware=[
-                TodoListMiddleware(),
+                FixedTodoListMiddleware(),  # Use fixed middleware that supports multiple updates per step
                 FilesystemMiddleware(backend=backend),
                 SummarizationMiddleware(
                     model=model,

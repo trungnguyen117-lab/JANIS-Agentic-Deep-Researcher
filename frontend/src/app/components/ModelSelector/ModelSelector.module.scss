@@ -68,6 +68,17 @@
   color: var(--color-text-primary);
 }
 
+.inputTokenCount {
+  cursor: help;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  
+  &:hover {
+    color: var(--color-primary);
+  }
+}
+
 .outputTokenCount {
   cursor: help;
   text-decoration: underline;

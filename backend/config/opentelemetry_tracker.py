@@ -47,8 +47,21 @@ def setup_httpx_interception():
         
         def patched_request(self, method, url, **kwargs):
             """Intercept HTTP requests to capture token usage."""
+            url_str = str(url)
+            # Log all requests to see what URLs we're getting
+            _write_to_log(f"HTTP REQUEST INTERCEPTED - Method: {method} | URL: {url_str}")
+            
             # Only intercept OpenAI-compatible API calls
-            if "api.pinkyne.com" in str(url) or "api.openai.com" in str(url) or "/v1/chat/completions" in str(url):
+            is_llm_call = (
+                "api.pinkyne.com" in url_str or 
+                "api.openai.com" in url_str or 
+                "/v1/chat/completions" in url_str or
+                "openai" in url_str.lower() or
+                "chat/completions" in url_str.lower()
+            )
+            
+            if is_llm_call:
+                _write_to_log(f"LLM API call detected: {url_str}")
                 # Make the original request
                 response = _original_httpx_request(self, method, url, **kwargs)
                 
@@ -74,17 +87,55 @@ def setup_httpx_interception():
                             actual_completion = max(0, completion_tokens - reasoning_tokens)
                             
                             if total_tokens > 0:
+                                # Extract model name from request or response
+                                model = response_json.get("model", "unknown")
+                                
+                                # Calculate cost (will be done by middleware, but we can log it)
+                                from backend.config.openlit_setup import calculate_custom_cost
+                                cost = calculate_custom_cost(model, prompt_tokens, completion_tokens) or 0.0
+                                
                                 _write_to_log(
-                                    f"HTTP REQUEST - URL: {url} | "
+                                    f"HTTP REQUEST - Model: {model} | URL: {url} | "
                                     f"Input: {prompt_tokens} | "
                                     f"Output: {completion_tokens} | "
                                     f"Completion: {actual_completion} | "
                                     f"Reasoning: {reasoning_tokens} | "
-                                    f"Total: {total_tokens}"
+                                    f"Total: {total_tokens} | "
+                                    f"Cost: ${cost:.6f}"
                                 )
                                 
-                                # Also log full response for debugging
-                                _write_to_log(f"FULL HTTP RESPONSE: {json.dumps(response_json, indent=2, default=str)}")
+                                # Add to token usage state (same as OpenLIT)
+                                try:
+                                    from backend.deepagents.middleware.token_usage_state import add_token_usage_from_openlit
+                                    add_token_usage_from_openlit(
+                                        input_tokens=prompt_tokens,
+                                        output_tokens=completion_tokens,
+                                        completion_tokens=actual_completion,
+                                        reasoning_tokens=reasoning_tokens,
+                                        total_tokens=total_tokens,
+                                        cost=cost,
+                                        model=model,
+                                    )
+                                    
+                                    # Also write to debug log (same format as OpenLIT)
+                                    try:
+                                        debug_log_file = _project_root / "token_count_debug.log"
+                                        # Determine call type from response
+                                        finish_reason = response_json.get("choices", [{}])[0].get("finish_reason", "stop")
+                                        call_type = "tool_call" if finish_reason == "tool_calls" else "completion"
+                                        tool_name = "N/A"
+                                        if call_type == "tool_call":
+                                            # Try to get tool name from response
+                                            tool_calls = response_json.get("choices", [{}])[0].get("message", {}).get("tool_calls", [])
+                                            if tool_calls:
+                                                tool_name = tool_calls[0].get("function", {}).get("name", "N/A")
+                                        
+                                        with open(debug_log_file, "a", encoding="utf-8") as f:
+                                            f.write(f"{model},{prompt_tokens},{completion_tokens},{call_type},{tool_name}\n")
+                                    except Exception:
+                                        pass  # Silently fail debug logging
+                                except Exception as e:
+                                    _write_to_log(f"Failed to add token usage to state: {e}")
                 except Exception as e:
                     _write_to_log(f"Error extracting token usage from HTTP response: {e}")
                 
@@ -130,8 +181,21 @@ def setup_async_httpx_interception():
         
         async def patched_async_request(self, method, url, **kwargs):
             """Intercept async HTTP requests to capture token usage."""
+            url_str = str(url)
+            # Log all requests to see what URLs we're getting
+            _write_to_log(f"HTTP REQUEST INTERCEPTED (ASYNC) - Method: {method} | URL: {url_str}")
+            
             # Only intercept OpenAI-compatible API calls
-            if "api.pinkyne.com" in str(url) or "api.openai.com" in str(url) or "/v1/chat/completions" in str(url):
+            is_llm_call = (
+                "api.pinkyne.com" in url_str or 
+                "api.openai.com" in url_str or 
+                "/v1/chat/completions" in url_str or
+                "openai" in url_str.lower() or
+                "chat/completions" in url_str.lower()
+            )
+            
+            if is_llm_call:
+                _write_to_log(f"LLM API call detected (ASYNC): {url_str}")
                 # Make the original request
                 response = await _original_async_request(self, method, url, **kwargs)
                 
@@ -157,17 +221,55 @@ def setup_async_httpx_interception():
                             actual_completion = max(0, completion_tokens - reasoning_tokens)
                             
                             if total_tokens > 0:
+                                # Extract model name from request or response
+                                model = response_json.get("model", "unknown")
+                                
+                                # Calculate cost (will be done by middleware, but we can log it)
+                                from backend.config.openlit_setup import calculate_custom_cost
+                                cost = calculate_custom_cost(model, prompt_tokens, completion_tokens) or 0.0
+                                
                                 _write_to_log(
-                                    f"HTTP REQUEST (ASYNC) - URL: {url} | "
+                                    f"HTTP REQUEST (ASYNC) - Model: {model} | URL: {url} | "
                                     f"Input: {prompt_tokens} | "
                                     f"Output: {completion_tokens} | "
                                     f"Completion: {actual_completion} | "
                                     f"Reasoning: {reasoning_tokens} | "
-                                    f"Total: {total_tokens}"
+                                    f"Total: {total_tokens} | "
+                                    f"Cost: ${cost:.6f}"
                                 )
                                 
-                                # Also log full response for debugging
-                                _write_to_log(f"FULL HTTP RESPONSE (ASYNC): {json.dumps(response_json, indent=2, default=str)}")
+                                # Add to token usage state (same as OpenLIT)
+                                try:
+                                    from backend.deepagents.middleware.token_usage_state import add_token_usage_from_openlit
+                                    add_token_usage_from_openlit(
+                                        input_tokens=prompt_tokens,
+                                        output_tokens=completion_tokens,
+                                        completion_tokens=actual_completion,
+                                        reasoning_tokens=reasoning_tokens,
+                                        total_tokens=total_tokens,
+                                        cost=cost,
+                                        model=model,
+                                    )
+                                    
+                                    # Also write to debug log (same format as OpenLIT)
+                                    try:
+                                        debug_log_file = _project_root / "token_count_debug.log"
+                                        # Determine call type from response
+                                        finish_reason = response_json.get("choices", [{}])[0].get("finish_reason", "stop")
+                                        call_type = "tool_call" if finish_reason == "tool_calls" else "completion"
+                                        tool_name = "N/A"
+                                        if call_type == "tool_call":
+                                            # Try to get tool name from response
+                                            tool_calls = response_json.get("choices", [{}])[0].get("message", {}).get("tool_calls", [])
+                                            if tool_calls:
+                                                tool_name = tool_calls[0].get("function", {}).get("name", "N/A")
+                                        
+                                        with open(debug_log_file, "a", encoding="utf-8") as f:
+                                            f.write(f"{model},{prompt_tokens},{completion_tokens},{call_type},{tool_name}\n")
+                                    except Exception:
+                                        pass  # Silently fail debug logging
+                                except Exception as e:
+                                    _write_to_log(f"Failed to add token usage to state: {e}")
                 except Exception as e:
                     _write_to_log(f"Error extracting token usage from async HTTP response: {e}")
                 
@@ -207,6 +309,25 @@ def setup_opentelemetry_tracking():
     setup_httpx_interception()
     setup_async_httpx_interception()
     
+    # Also try to patch OpenAI SDK's HTTP client directly
+    # LangChain's ChatOpenAI uses OpenAI SDK, which creates its own httpx clients
+    try:
+        import openai
+        # OpenAI SDK uses httpx internally, but creates clients dynamically
+        # We need to patch at the httpx level, which we already did
+        # But also try to patch OpenAI's client creation if possible
+        _write_to_log("OpenAI SDK detected - httpx patching should intercept its calls")
+        
+        # Try to patch OpenAI's default httpx client if it exists
+        if hasattr(openai, '_client'):
+            _write_to_log("OpenAI SDK has _client attribute")
+    except ImportError:
+        _write_to_log("OpenAI SDK not found - using httpx patching only")
+    except Exception as e:
+        _write_to_log(f"Note about OpenAI SDK: {e}")
+    
     _write_to_log("OpenTelemetry HTTP interception set up successfully")
     _write_to_log("This will capture token usage directly from API responses")
+    _write_to_log("All HTTP requests will be logged to help debug if interception is working")
+    _write_to_log("If no requests appear in logs, httpx patching may not be intercepting LangChain's calls")
 

@@ -129,6 +129,7 @@ def setup_openlit():
                 # CRITICAL: Suppress any stdout/stderr output to prevent JSON span printing
                 import sys
                 from io import StringIO
+                import threading
                 
                 # Temporarily suppress stdout/stderr to prevent any JSON printing
                 old_stdout = sys.stdout
@@ -136,6 +137,20 @@ def setup_openlit():
                 try:
                     sys.stdout = StringIO()
                     sys.stderr = StringIO()
+                    
+                    # Set up log file path (outside of stdout/stderr redirection)
+                    from pathlib import Path
+                    import threading
+                    project_root = Path(__file__).parent.parent.parent
+                    log_file = project_root / "token_count_debug.log"
+                    # Ensure directory exists (do this once, in a thread to avoid blocking)
+                    if not log_file.parent.exists():
+                        def mkdir_safe():
+                            try:
+                                log_file.parent.mkdir(parents=True, exist_ok=True)
+                            except:
+                                pass
+                        threading.Thread(target=mkdir_safe, daemon=True).start()
                     
                     # Understand OpenLIT span structure:
                     # - Each span represents either an individual LLM call or an aggregation
@@ -166,6 +181,26 @@ def setup_openlit():
                     for span in spans:
                         # Extract token usage from span attributes
                         attrs = dict(span.attributes) if span.attributes else {}
+                        
+                        # Try to extract thread_id from span attributes or resource attributes
+                        # LangGraph/LangChain may set this in various places
+                        thread_id = (
+                            attrs.get("langgraph.thread_id") or
+                            attrs.get("langchain.thread_id") or
+                            attrs.get("thread_id") or
+                            attrs.get("session_id") or
+                            None
+                        )
+                        # Also check resource attributes
+                        if not thread_id and hasattr(span, "resource") and span.resource:
+                            resource_attrs = dict(span.resource.attributes) if span.resource.attributes else {}
+                            thread_id = (
+                                resource_attrs.get("langgraph.thread_id") or
+                                resource_attrs.get("langchain.thread_id") or
+                                resource_attrs.get("thread_id") or
+                                resource_attrs.get("session_id") or
+                                None
+                            )
                         
                         span_id = span.context.span_id if hasattr(span.context, 'span_id') else None
                         
@@ -269,6 +304,30 @@ def setup_openlit():
                             if span_id:
                                 processed_span_ids.add(span_id)
                             
+                            # Determine if this is a tool call or completion
+                            call_type = "tool_call" if (is_tool_call or has_tool_info) else "completion"
+                            
+                            # Get tool name if available (tool_name was extracted earlier)
+                            tool_name_str = tool_name if tool_name else "N/A"
+                            
+                            # Log to debug file: model, input, output, call_type, tool_name
+                            # Write directly to file in a thread to avoid blocking
+                            def write_log_entry():
+                                try:
+                                    with open(log_file, "a", encoding="utf-8") as f:
+                                        f.write(f"{model},{input_tokens},{output_tokens},{call_type},{tool_name_str}\n")
+                                        f.flush()  # Force write immediately
+                                except Exception as e:
+                                    # Write error to file directly (bypassing stdout/stderr redirection)
+                                    try:
+                                        with open(log_file, "a", encoding="utf-8") as f:
+                                            f.write(f"# ERROR: Failed to log: {e}\n")
+                                    except:
+                                        pass
+                            
+                            # Write in a daemon thread to avoid blocking
+                            threading.Thread(target=write_log_entry, daemon=True).start()
+                            
                             # Understand OpenLIT's token counting:
                             # - gen_ai.usage.input_tokens / output_tokens: tokens for THIS specific span
                             # - gen_ai.client.token.usage: may be aggregated across multiple spans
@@ -303,6 +362,7 @@ def setup_openlit():
                             completion_tokens = max(0, output_tokens - reasoning_tokens)
                             
                             # Store token usage - using individual span's counts, not aggregated totals
+                            # Pass thread_id if we found it in span attributes
                             add_token_usage_from_openlit(
                                 input_tokens=input_tokens,
                                 output_tokens=output_tokens,
@@ -311,6 +371,7 @@ def setup_openlit():
                                 total_tokens=final_total_tokens,
                                 cost=cost,
                                 model=model,
+                                thread_id=thread_id,
                             )
                 finally:
                     # Restore stdout/stderr

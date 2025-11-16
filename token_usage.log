@@ -1,0 +1,87 @@
+[2025-11-16T23:28:43.913601] Setting up OpenTelemetry HTTP interception for token tracking
+[2025-11-16T23:28:43.913667] httpx Client.request patched for token tracking
+[2025-11-16T23:28:43.913741] httpx AsyncClient.request patched for token tracking
+[2025-11-16T23:28:43.913769] OpenTelemetry HTTP interception set up successfully
+[2025-11-16T23:28:43.913792] This will capture token usage directly from API responses
+
+[2025-11-16T23:32:44.710126] Setting up OpenTelemetry HTTP interception for token tracking
+[2025-11-16T23:32:44.710261] httpx Client.request patched for token tracking
+[2025-11-16T23:32:44.710301] httpx AsyncClient.request patched for token tracking
+[2025-11-16T23:32:44.710326] OpenAI SDK detected - httpx patching should intercept its calls
+[2025-11-16T23:32:44.710350] OpenAI SDK has _client attribute
+[2025-11-16T23:32:44.710419] OpenTelemetry HTTP interception set up successfully
+[2025-11-16T23:32:44.710497] This will capture token usage directly from API responses
+[2025-11-16T23:32:44.710522] All HTTP requests will be logged to help debug if interception is working
+[2025-11-16T23:32:44.710543] If no requests appear in logs, httpx patching may not be intercepting LangChain's calls
+[2025-11-16T23:35:48.949317] Setting up OpenTelemetry HTTP interception for token tracking
+[2025-11-16T23:35:48.949557] httpx Client.request patched for token tracking
+[2025-11-16T23:35:48.949626] httpx AsyncClient.request patched for token tracking
+[2025-11-16T23:35:48.949763] OpenAI SDK detected - httpx patching should intercept its calls
+[2025-11-16T23:35:48.949880] OpenAI SDK has _client attribute
+[2025-11-16T23:35:48.949999] OpenTelemetry HTTP interception set up successfully
+[2025-11-16T23:35:48.950144] This will capture token usage directly from API responses
+[2025-11-16T23:35:48.950269] All HTTP requests will be logged to help debug if interception is working
+[2025-11-16T23:35:48.950395] If no requests appear in logs, httpx patching may not be intercepting LangChain's calls
+[2025-11-16T23:37:03.506016] Setting up OpenTelemetry HTTP interception for token tracking
+[2025-11-16T23:37:03.506127] httpx Client.request patched for token tracking
+[2025-11-16T23:37:03.506163] httpx AsyncClient.request patched for token tracking
+[2025-11-16T23:37:03.506188] OpenAI SDK detected - httpx patching should intercept its calls
+[2025-11-16T23:37:03.506210] OpenAI SDK has _client attribute
+[2025-11-16T23:37:03.506231] OpenTelemetry HTTP interception set up successfully
+[2025-11-16T23:37:03.506251] This will capture token usage directly from API responses
+[2025-11-16T23:37:03.506272] All HTTP requests will be logged to help debug if interception is working
+[2025-11-16T23:37:03.506292] If no requests appear in logs, httpx patching may not be intercepting LangChain's calls
+[2025-11-16T23:39:37.133901] Setting up OpenTelemetry HTTP interception for token tracking
+[2025-11-16T23:39:37.134027] httpx Client.request patched for token tracking
+[2025-11-16T23:39:37.134064] httpx AsyncClient.request patched for token tracking
+[2025-11-16T23:39:37.134120] OpenAI SDK detected - httpx patching should intercept its calls
+[2025-11-16T23:39:37.134149] OpenAI SDK has _client attribute
+[2025-11-16T23:39:37.134171] OpenTelemetry HTTP interception set up successfully
+[2025-11-16T23:39:37.134196] This will capture token usage directly from API responses
+[2025-11-16T23:39:37.134246] All HTTP requests will be logged to help debug if interception is working
+[2025-11-16T23:39:37.134274] If no requests appear in logs, httpx patching may not be intercepting LangChain's calls
+[2025-11-16T23:40:07.246645] Setting up OpenTelemetry HTTP interception for token tracking
+[2025-11-16T23:40:07.246849] httpx Client.request patched for token tracking
+[2025-11-16T23:40:07.246895] httpx AsyncClient.request patched for token tracking
+[2025-11-16T23:40:07.246953] OpenAI SDK detected - httpx patching should intercept its calls
+[2025-11-16T23:40:07.246992] OpenAI SDK has _client attribute
+[2025-11-16T23:40:07.247018] OpenTelemetry HTTP interception set up successfully
+[2025-11-16T23:40:07.247081] This will capture token usage directly from API responses
+[2025-11-16T23:40:07.247161] All HTTP requests will be logged to help debug if interception is working
+[2025-11-16T23:40:07.247222] If no requests appear in logs, httpx patching may not be intercepting LangChain's calls
+[2025-11-16T23:41:09.331807] Setting up OpenTelemetry HTTP interception for token tracking
+[2025-11-16T23:41:09.331934] httpx Client.request patched for token tracking
+[2025-11-16T23:41:09.331970] httpx AsyncClient.request patched for token tracking
+[2025-11-16T23:41:09.331998] OpenAI SDK detected - httpx patching should intercept its calls
+[2025-11-16T23:41:09.332060] OpenAI SDK has _client attribute
+[2025-11-16T23:41:09.332090] OpenTelemetry HTTP interception set up successfully
+[2025-11-16T23:41:09.332120] This will capture token usage directly from API responses
+[2025-11-16T23:41:09.332143] All HTTP requests will be logged to help debug if interception is working
+[2025-11-16T23:41:09.332197] If no requests appear in logs, httpx patching may not be intercepting LangChain's calls
+[2025-11-16T23:41:31.757742] Setting up OpenTelemetry HTTP interception for token tracking
+[2025-11-16T23:41:31.757879] httpx Client.request patched for token tracking
+[2025-11-16T23:41:31.757968] httpx AsyncClient.request patched for token tracking
+[2025-11-16T23:41:31.758069] OpenAI SDK detected - httpx patching should intercept its calls
+[2025-11-16T23:41:31.758112] OpenAI SDK has _client attribute
+[2025-11-16T23:41:31.758203] OpenTelemetry HTTP interception set up successfully
+[2025-11-16T23:41:31.758270] This will capture token usage directly from API responses
+[2025-11-16T23:41:31.758359] All HTTP requests will be logged to help debug if interception is working
+[2025-11-16T23:41:31.758394] If no requests appear in logs, httpx patching may not be intercepting LangChain's calls
+[2025-11-16T23:41:39.898859] Setting up OpenTelemetry HTTP interception for token tracking
+[2025-11-16T23:41:39.898978] httpx Client.request patched for token tracking
+[2025-11-16T23:41:39.899050] httpx AsyncClient.request patched for token tracking
+[2025-11-16T23:41:39.899084] OpenAI SDK detected - httpx patching should intercept its calls
+[2025-11-16T23:41:39.899111] OpenAI SDK has _client attribute
+[2025-11-16T23:41:39.899135] OpenTelemetry HTTP interception set up successfully
+[2025-11-16T23:41:39.899159] This will capture token usage directly from API responses
+[2025-11-16T23:41:39.899272] All HTTP requests will be logged to help debug if interception is working
+[2025-11-16T23:41:39.899313] If no requests appear in logs, httpx patching may not be intercepting LangChain's calls
+[2025-11-16T23:42:21.431419] Setting up OpenTelemetry HTTP interception for token tracking
+[2025-11-16T23:42:21.431603] httpx Client.request patched for token tracking
+[2025-11-16T23:42:21.431671] httpx AsyncClient.request patched for token tracking
+[2025-11-16T23:42:21.431800] OpenAI SDK detected - httpx patching should intercept its calls
+[2025-11-16T23:42:21.432012] OpenAI SDK has _client attribute
+[2025-11-16T23:42:21.432190] OpenTelemetry HTTP interception set up successfully
+[2025-11-16T23:42:21.432400] This will capture token usage directly from API responses
+[2025-11-16T23:42:21.432547] All HTTP requests will be logged to help debug if interception is working
+[2025-11-16T23:42:21.432781] If no requests appear in logs, httpx patching may not be intercepting LangChain's calls

@@ -31,9 +31,9 @@ interface ChatInterfaceProps {
   onFilesUpdate: (files: Record<string, string>) => void;
   onNewThread: () => void;
   isLoadingThreadState: boolean;
-  tokenUsage?: { input: number; output: number; completion: number; reasoning: number; total: number; cost?: number };
+  tokenUsage?: { input: number; output: number; completion: number; reasoning: number; cache?: number; prompt?: number; total: number; cost?: number };
   availableModels?: Array<{ name: string; input_price_per_million: number; output_price_per_million: number }>;
-  onTokenUsageUpdate?: (usage: { input: number; output: number; completion: number; reasoning: number; total: number; cost?: number }) => void;
+  onTokenUsageUpdate?: (usage: { input: number; output: number; completion: number; reasoning: number; cache?: number; prompt?: number; total: number; cost?: number }) => void;
   onModelsUpdate?: (models: Array<{ name: string; input_price_per_million: number; output_price_per_million: number }>) => void;
   onProcessedMessagesReady?: (processedMessages: any[]) => void; // Callback to pass processed messages to parent
 }
@@ -59,7 +59,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     const [selectedModel, setSelectedModel] = useState<string>("gpt-4o");
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const { messages, isLoading, sendMessage, stopStream } = useChat(
+    const { messages, isLoading, sendMessage, stopStream, subagentToolCallsMap } = useChat(
       threadId,
       setThreadId,
       onTodosUpdate,
@@ -116,6 +116,10 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       const messageMap = new Map<string, any>();
       messages.forEach((message: Message) => {
         if (message.type === "ai") {
+          // Check if this is a sub-agent AIMessage (marked with _subagent_source metadata)
+          const subagentSource = (message.additional_kwargs as any)?._subagent_source;
+          const isSubagentMessage = !!subagentSource;
+          
           const toolCallsInMessage: any[] = [];
           if (
             message.additional_kwargs?.tool_calls &&
@@ -151,55 +155,149 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 name,
                 args,
                 status: "pending" as const,
+                // Add sub-agent metadata if this is from a sub-agent
+                ...(isSubagentMessage ? {
+                  subagentType: subagentSource.subagent_type,
+                  parentToolCallId: subagentSource.tool_call_id,
+                } : {}),
               } as ToolCall;
             },
           );
-          messageMap.set(message.id!, {
+          
+          // If this is a sub-agent message, store tool calls as subagentToolCalls
+          // Otherwise, store as regular toolCalls (main agent)
+          // IMPORTANT: Each tool call from a sub-agent AIMessage has parentToolCallId set to
+          // the unique tool_call_id, which allows us to correctly handle multiple sub-agents
+          // with the same name (e.g., parallel "literature-review-agent" instances)
+          const messageData: any = {
             message,
-            toolCalls: toolCallsWithStatus,
-          });
+            toolCalls: isSubagentMessage ? [] : toolCallsWithStatus, // Main agent tool calls
+            subagentToolCalls: isSubagentMessage ? toolCallsWithStatus : [], // Sub-agent tool calls
+          };
+          
+          messageMap.set(message.id!, messageData);
+          
+          if (isSubagentMessage) {
+            console.log("[ChatInterface] Found sub-agent AIMessage:", {
+              messageId: message.id,
+              toolCallsCount: toolCallsWithStatus.length,
+              subagentType: subagentSource.subagent_type,
+              parentToolCallId: subagentSource.tool_call_id, // Unique ID for this sub-agent instance
+              // This parentToolCallId is used to match tool calls to the correct sub-agent instance
+            });
+          }
         } else if (message.type === "tool") {
           const toolCallId = message.tool_call_id;
           if (!toolCallId) {
             return;
           }
           
-          // Check if this tool message contains sub-agent tool calls
-          const subagentToolCalls = (message.additional_kwargs as any)?.subagent_tool_calls;
-          const subagentType = (message.additional_kwargs as any)?.subagent_type;
+          // Check if this ToolMessage is from a sub-agent
+          const subagentSource = (message.additional_kwargs as any)?._subagent_source;
+          const isSubagentToolMessage = !!subagentSource;
           
-          for (const [, data] of messageMap.entries()) {
-            const toolCallIndex = data.toolCalls.findIndex(
-              (tc: any) => tc.id === toolCallId,
-            );
-            if (toolCallIndex === -1) {
-              continue;
-            }
-            
-            // Update the tool call with result
-            data.toolCalls[toolCallIndex] = {
-              ...data.toolCalls[toolCallIndex],
-              status: "completed" as const,
-              result: extractStringFromMessageContent(message),
-            };
-            
-            // If this is a task tool call with sub-agent tool calls, add them to the message
-            if (subagentToolCalls && Array.isArray(subagentToolCalls) && subagentToolCalls.length > 0) {
-              // Add sub-agent tool calls to the message data
-              if (!data.subagentToolCalls) {
-                data.subagentToolCalls = [];
+          // Check if this tool message contains sub-agent tool calls
+          // Try multiple locations where the data might be stored
+          let subagentToolCalls: any[] | undefined;
+          let subagentType: string | undefined;
+          
+          // First, try additional_kwargs (primary location)
+          if (message.additional_kwargs) {
+            subagentToolCalls = (message.additional_kwargs as any)?.subagent_tool_calls;
+            subagentType = (message.additional_kwargs as any)?.subagent_type;
+          }
+          
+          // If not found, try checking the message object directly
+          if (!subagentToolCalls && (message as any).subagent_tool_calls) {
+            subagentToolCalls = (message as any).subagent_tool_calls;
+            subagentType = (message as any).subagent_type;
+          }
+          
+          // If still not found, try parsing from content if it's a JSON string
+          if (!subagentToolCalls && typeof message.content === "string") {
+            try {
+              // Check if content contains embedded JSON with subagent data
+              const contentStr = message.content;
+              // Look for JSON-like structures in the content
+              const jsonMatch = contentStr.match(/\{[\s\S]*"subagent_tool_calls"[\s\S]*\}/);
+              if (jsonMatch) {
+                const parsed = JSON.parse(jsonMatch[0]);
+                if (parsed.subagent_tool_calls) {
+                  subagentToolCalls = parsed.subagent_tool_calls;
+                  subagentType = parsed.subagent_type;
+                }
               }
-              // Add sub-agent tool calls with metadata
-              subagentToolCalls.forEach((tc: any) => {
-                data.subagentToolCalls!.push({
-                  ...tc,
-                  subagentType: subagentType,
-                  parentToolCallId: toolCallId,
-                });
-              });
+            } catch (e) {
+              // Ignore parsing errors
             }
-            
-            break;
+          }
+          
+          // Process ToolMessage - update tool call status
+          // If it's from a sub-agent, update sub-agent tool calls; otherwise update main agent tool calls
+          if (isSubagentToolMessage) {
+            // This ToolMessage is from a sub-agent - update sub-agent tool call status
+            // Search ALL messageMap entries to find the sub-agent tool call that matches this tool_call_id
+            // Sub-agent tool calls can be in any messageMap entry (they're stored with parentToolCallId)
+            for (const [, data] of messageMap.entries()) {
+              if (data.subagentToolCalls && Array.isArray(data.subagentToolCalls)) {
+                const subagentToolCallIndex = data.subagentToolCalls.findIndex(
+                  (tc: any) => tc.id === toolCallId,
+                );
+                if (subagentToolCallIndex !== -1) {
+                  // Update the sub-agent tool call with result
+                  data.subagentToolCalls[subagentToolCallIndex] = {
+                    ...data.subagentToolCalls[subagentToolCallIndex],
+                    status: "completed" as const,
+                    result: extractStringFromMessageContent(message),
+                  };
+                  return; // Found and updated, exit early
+                }
+              }
+            }
+          } else {
+            // This ToolMessage is from the main agent - update main agent tool call status
+            for (const [, data] of messageMap.entries()) {
+              // This ToolMessage is from the main agent - update main agent tool call status
+              const toolCallIndex = data.toolCalls.findIndex(
+                (tc: any) => tc.id === toolCallId,
+              );
+              if (toolCallIndex !== -1) {
+                // Update the tool call with result
+                data.toolCalls[toolCallIndex] = {
+                  ...data.toolCalls[toolCallIndex],
+                  status: "completed" as const,
+                  result: extractStringFromMessageContent(message),
+                };
+                
+                // If subagentToolCalls not found in message, try reading from state
+                if (!subagentToolCalls || !Array.isArray(subagentToolCalls) || subagentToolCalls.length === 0) {
+                  // Fallback: read from state map
+                  const stateData = subagentToolCallsMap?.[toolCallId];
+                  if (stateData && stateData.tool_calls && Array.isArray(stateData.tool_calls)) {
+                    subagentToolCalls = stateData.tool_calls;
+                    subagentType = stateData.subagent_type || subagentType;
+                  }
+                }
+                
+                // If this is a task tool call with sub-agent tool calls, add them to the message
+                if (subagentToolCalls && Array.isArray(subagentToolCalls) && subagentToolCalls.length > 0) {
+                  // Add sub-agent tool calls to the message data
+                  if (!data.subagentToolCalls) {
+                    data.subagentToolCalls = [];
+                  }
+                  // Add sub-agent tool calls with metadata
+                  subagentToolCalls.forEach((tc: any) => {
+                    data.subagentToolCalls!.push({
+                      ...tc,
+                      subagentType: subagentType,
+                      parentToolCallId: toolCallId,
+                    });
+                  });
+                }
+                
+                break; // Found and updated, exit loop
+              }
+            }
           }
         } else if (message.type === "human") {
           messageMap.set(message.id!, {
@@ -217,7 +315,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           showAvatar: data.message.type !== prevMessage?.type,
         };
       });
-    }, [messages]);
+    }, [messages, subagentToolCallsMap]);
 
     // Pass processed messages to parent component
     // Use a ref to track the last sent messages to prevent infinite loops
@@ -275,22 +373,35 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
               </div>
             )}
             <div className={styles.messagesList}>
-              {processedMessages.map((data) => (
-                <ChatMessage
-                  key={data.message.id}
-                  message={data.message}
-                  toolCalls={data.toolCalls}
-                  subagentToolCalls={data.subagentToolCalls || []}
-                  showAvatar={data.showAvatar}
-                  onSelectSubAgent={onSelectSubAgent}
-                  selectedSubAgent={selectedSubAgent}
-                  onApprove={
-                    data.message.type === "ai"
-                      ? () => sendMessage("approve")
-                      : undefined
+              {processedMessages
+                .filter((data) => {
+                  // Filter out sub-agent AIMessages from main chat view
+                  // They're included in message history for tool call preservation,
+                  // but shouldn't be displayed in the main chat
+                  if (data.message.type === "ai") {
+                    const subagentSource = (data.message.additional_kwargs as any)?._subagent_source;
+                    if (subagentSource) {
+                      return false; // Hide sub-agent AIMessages from main chat
+                    }
                   }
-                />
-              ))}
+                  return true;
+                })
+                .map((data) => (
+                  <ChatMessage
+                    key={data.message.id}
+                    message={data.message}
+                    toolCalls={data.toolCalls}
+                    subagentToolCalls={data.subagentToolCalls || []}
+                    showAvatar={data.showAvatar}
+                    onSelectSubAgent={onSelectSubAgent}
+                    selectedSubAgent={selectedSubAgent}
+                    onApprove={
+                      data.message.type === "ai"
+                        ? () => sendMessage("approve")
+                        : undefined
+                    }
+                  />
+                ))}
               {isLoading && (
                 <div className={styles.loadingMessage}>
                   <LoaderCircle className={styles.spinner} />

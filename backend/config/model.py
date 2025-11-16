@@ -116,6 +116,7 @@ def get_model(model_name: str | None = None):
     
     # Use ChatOpenAI directly with OpenAI-compatible interface
     # Langfuse will automatically track token usage via callbacks
+    # stream_usage=True is required for LangGraph to capture token usage data
     base_url = os.environ.get("API_BASE_URL", "http://api.pinkyne.com/v1/")
     api_key = os.environ.get("OPENAI_API_KEY")
     
@@ -124,6 +125,7 @@ def get_model(model_name: str | None = None):
         api_key=api_key,
         base_url=base_url,
         temperature=0,
+        stream_usage=True,  # Required for LangGraph to capture token usage
     )
     
     return llm

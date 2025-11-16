@@ -25,7 +25,7 @@ export default function HomePage() {
   const [isLoadingThreadState, setIsLoadingThreadState] = useState(false);
   const sendMessageCallbackRef = React.useRef<((message: string) => void) | null>(null);
   const [processedMessages, setProcessedMessages] = useState<any[]>([]);
-  const [tokenUsage, setTokenUsage] = useState<{ input: number; output: number; completion: number; reasoning: number; total: number; cost?: number }>({
+  const [tokenUsage, setTokenUsage] = useState<{ input: number; output: number; completion: number; reasoning: number; cache?: number; prompt?: number; total: number; cost?: number }>({
     input: 0,
     output: 0,
     completion: 0,
@@ -36,22 +36,32 @@ export default function HomePage() {
   const [availableModels, setAvailableModels] = useState<Array<{ name: string; input_price_per_million: number; output_price_per_million: number }>>([]);
   
   // Find tool calls for the selected sub-agent
+  // IMPORTANT: This handles multiple sub-agents with the same name correctly by using
+  // the unique tool_call_id (selectedSubAgent.id) as the key. Each sub-agent invocation
+  // has a unique tool_call_id, even if they have the same name (e.g., multiple parallel
+  // "literature-review-agent" instances).
   const subAgentToolCalls = React.useMemo<ToolCall[]>(() => {
     if (!selectedSubAgent) return [];
     
-    // Find all tool calls that belong to this sub-agent
-    // Sub-agent tool calls have parentToolCallId matching the sub-agent's id
+    // Find all tool calls that belong to this sub-agent instance
+    // Sub-agent tool calls have parentToolCallId matching the sub-agent's id (the unique tool_call_id)
     const toolCalls: ToolCall[] = [];
+    
     processedMessages.forEach((messageData) => {
-      if (messageData.subagentToolCalls) {
+      if (messageData.subagentToolCalls && messageData.subagentToolCalls.length > 0) {
         messageData.subagentToolCalls.forEach((tc: ToolCall) => {
-          if (tc.parentToolCallId === selectedSubAgent.id || 
-              (tc.subagentType === selectedSubAgent.subAgentName && tc.parentToolCallId === selectedSubAgent.id)) {
+          // CRITICAL: Match by parentToolCallId ONLY (not by name/type)
+          // This ensures we correctly handle multiple sub-agents with the same name
+          // Each sub-agent invocation has a unique tool_call_id (selectedSubAgent.id)
+          const matchesById = tc.parentToolCallId === selectedSubAgent.id;
+          
+          if (matchesById) {
             toolCalls.push(tc);
           }
         });
       }
     });
+    
     return toolCalls;
   }, [selectedSubAgent, processedMessages]);
 
@@ -79,34 +89,8 @@ export default function HomePage() {
     return null;
   }, [files]);
 
-  // Read token usage from /token_usage.json file
-  React.useEffect(() => {
-    const tokenUsageFile = files["/token_usage.json"];
-    if (tokenUsageFile) {
-      try {
-        const usage = JSON.parse(tokenUsageFile);
-        const newUsage = {
-          input: usage.input || 0,
-          output: usage.output || 0,
-          completion: usage.completion || 0,
-          reasoning: usage.reasoning || 0,
-          total: usage.total || 0,
-          cost: usage.cost || 0,
-        };
-        // Only update if values have changed to avoid unnecessary re-renders
-        setTokenUsage((prev) => {
-          if (prev.input !== newUsage.input || prev.output !== newUsage.output || 
-              prev.total !== newUsage.total || prev.cost !== newUsage.cost) {
-            console.log("[Page] ✓ Token usage updated from file:", newUsage);
-            return newUsage;
-          }
-          return prev;
-        });
-      } catch (error) {
-        console.error("[Page] Failed to parse token_usage.json:", error);
-      }
-    }
-  }, [files]);
+  // Token usage is read from stream.values.token_usage in useChat hook
+  // No need to read from files
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => !prev);
@@ -118,6 +102,7 @@ export default function HomePage() {
       if (!threadId || !session?.accessToken) {
         setTodos([]);
         setFiles({});
+        // Token usage will be reset automatically when new thread starts (no state = zero usage)
         setIsLoadingThreadState(false);
         return;
       }
@@ -130,8 +115,36 @@ export default function HomePage() {
           const currentState = state.values as {
             todos?: TodoItem[];
             files?: Record<string, any>;
+            token_usage?: { input: number; output: number; completion: number; reasoning: number; cache?: number; prompt?: number; total: number; cost?: number };
           };
           setTodos(currentState.todos || []);
+          
+          // Reset token usage to thread's state (or zero if not present)
+          // This ensures each thread has its own isolated token usage
+          if (currentState.token_usage) {
+            setTokenUsage({
+              input: currentState.token_usage.input || 0,
+              output: currentState.token_usage.output || 0,
+              completion: currentState.token_usage.completion || 0,
+              reasoning: currentState.token_usage.reasoning || 0,
+              cache: currentState.token_usage.cache || 0,
+              prompt: currentState.token_usage.prompt || 0,
+              total: currentState.token_usage.total || 0,
+              cost: currentState.token_usage.cost || 0,
+            });
+          } else {
+            // If thread has no token_usage, reset to zero (new thread or no usage yet)
+            setTokenUsage({
+              input: 0,
+              output: 0,
+              completion: 0,
+              reasoning: 0,
+              cache: 0,
+              prompt: 0,
+              total: 0,
+              cost: 0,
+            });
+          }
           
           // Normalize file content to ensure all values are strings
           const normalizedFiles: Record<string, string> = {};
@@ -150,6 +163,9 @@ export default function HomePage() {
             console.log("[Page] Thread state load - Previous:", Object.keys(prevFiles), "State:", Object.keys(normalizedFiles), "Merged:", Object.keys(merged));
             return merged;
           });
+        } else {
+          // If no state values, token usage will be zero (no usage yet for this thread)
+          // Don't need to explicitly reset - it will be set by useChat hook when it reads from state
         }
       } catch (error) {
         console.error("Failed to fetch thread state:", error);
@@ -167,6 +183,7 @@ export default function HomePage() {
     setSelectedSubAgent(null);
     setTodos([]);
     setFiles({});
+    // Token usage will automatically be zero for new thread (no state = zero usage)
   }, [setThreadId]);
 
   return (
@@ -215,7 +232,7 @@ export default function HomePage() {
           }, [])}
           onNewThread={handleNewThread}
           isLoadingThreadState={isLoadingThreadState}
-          onTokenUsageUpdate={React.useCallback((usage: { input: number; output: number; completion: number; reasoning: number; total: number; cost?: number }) => {
+          onTokenUsageUpdate={React.useCallback((usage: { input: number; output: number; completion: number; reasoning: number; cache?: number; prompt?: number; total: number; cost?: number }) => {
             setTokenUsage(usage);
           }, [])}
           tokenUsage={tokenUsage}
