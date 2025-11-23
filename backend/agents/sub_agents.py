@@ -36,15 +36,15 @@ def create_sub_agents():
     # Phase 2: Planning Agent (HUMAN APPROVAL REQUIRED)
     planning_agent = {
         "name": "planning-agent",
-        "description": "Creates comprehensive research plans with human approval. Use this agent for Phase 2 (Plan Formulation). This agent generates research brief, uses collaborative planning, creates structured outline, extracts plan using ```PLAN marker, extracts outline using ```OUTLINE marker, **MUST save outline to /plan_outline.json using write_file tool**, validates JSON using validate_json tool, presents plan to user, and waits for approval. This is the ONLY phase requiring human approval. After approval, saves plan to research_plan.md.",
+        "description": "Creates comprehensive research plans with human approval. Use this agent for Phase 2 (Plan Formulation). This agent generates research brief, uses collaborative planning, creates structured outline, extracts plan using ```PLAN marker, extracts outline using ```OUTLINE marker, **MUST save outline to /plan_outline.json using write_file tool**, validates JSON using validate_json tool (available from filesystem middleware), presents plan to user, and waits for approval. This is the ONLY phase requiring human approval. After approval, saves plan to research_plan.md.",
         "system_prompt": planning_agent_prompt,
-        "tools": [validate_json],
+        "tools": [],  # validate_json is provided by FilesystemMiddleware
     }
 
     # Phase 3: Individual Researcher Agent
     individual_researcher_agent = {
         "name": "individual-researcher-agent",
-        "description": "Conducts focused research on specific topics assigned by the orchestrator. Use this agent for Phase 3 (Research Phase) when you need to delegate research tasks. The researcher decomposes topic into sub-queries, searches arXiv iteratively, uses think_tool for reflection, compresses findings, and saves to research_findings_[topic].md. This phase is AUTONOMOUS.",
+        "description": "Conducts focused, DEEP, and COMPREHENSIVE research on specific topics assigned by the orchestrator. Use this agent for Phase 3 (Research Phase) when you need to delegate research tasks. The researcher decomposes topic into sub-queries, searches arXiv iteratively, uses think_tool for reflection, writes DETAILED and EXTENSIVE findings (2000-3000+ words minimum, 200-400 words per paper), and saves to research_findings_[topic].md. This phase is AUTONOMOUS. IMPORTANT: Findings must be comprehensive and detailed, NOT brief summaries.",
         "system_prompt": individual_researcher_prompt,
         "tools": [arxiv_search, think_tool],
     }

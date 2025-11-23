@@ -6,19 +6,21 @@ from langchain_core.tools import tool
 
 
 @tool
-def validate_json(json_string: str, file_path: Optional[str] = None) -> str:
+def validate_json(json_string: Optional[str] = None, file_path: Optional[str] = None) -> str:
     """Validate JSON syntax and structure.
     
-    Use this tool to verify that a JSON string is valid before writing it to a file.
+    Use this tool to verify that a JSON string or file is valid.
     This is especially important for plan_outline.json which must be valid JSON for the frontend to parse.
     
-    IMPORTANT: If you want to validate a file that's already written:
-    1. First use read_file("/plan_outline.json") to read the file content
-    2. Then call validate_json(json_string="<the file content>") to validate it
+    You can provide either:
+    - `file_path`: Path to a JSON file to read and validate (e.g., "/plan_outline.json")
+    - `json_string`: Direct JSON string to validate
+    
+    If both are provided, `file_path` takes precedence (the file will be read and validated).
     
     Args:
-        json_string: The JSON string to validate. If validating a file, read the file first and pass its content here.
-        file_path: Optional file path for reference. This is just for documentation - the tool validates json_string.
+        json_string: Optional JSON string to validate directly. If not provided, file_path must be provided.
+        file_path: Optional path to a JSON file to read and validate. If provided, the file will be read automatically.
     
     Returns:
         A detailed validation result message indicating:
@@ -27,25 +29,42 @@ def validate_json(json_string: str, file_path: Optional[str] = None) -> str:
         - If valid, confirmation and basic structure information (sections count, required fields)
     
     Examples:
-        validate_json('{"sections": [{"id": "section_1"}]}')
-        # To validate a file: read_file("/plan_outline.json") first, then:
-        validate_json(json_string="<file content from read_file>", file_path="/plan_outline.json")
+        # Validate a file directly (recommended for large files)
+        validate_json(file_path="/plan_outline.json")
+        
+        # Validate a JSON string directly
+        validate_json(json_string='{"sections": [{"id": "section_1"}]}')
     """
     result_parts = []
+    json_content = ""
     
-    # If file_path is provided, mention it in the response
+    # Determine the source of JSON content
     if file_path:
-        result_parts.append(f"Validating JSON for file: {file_path}")
-        result_parts.append("Note: Make sure you read the file content first using read_file, then pass it as json_string")
+        # Read from file
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                json_content = f.read()
+            result_parts.append(f"📄 Reading JSON from file: {file_path}")
+            result_parts.append("")
+        except FileNotFoundError:
+            return f"❌ ERROR: File not found: {file_path}"
+        except Exception as e:
+            return f"❌ ERROR: Could not read file {file_path}: {str(e)}"
+    elif json_string:
+        # Use provided JSON string
+        json_content = json_string
+        result_parts.append("📄 Validating provided JSON string")
         result_parts.append("")
+    else:
+        return "❌ ERROR: Either 'json_string' or 'file_path' must be provided."
     
-    # Validate the JSON string
-    if not json_string or not json_string.strip():
-        return "❌ ERROR: JSON string is empty or contains only whitespace. Please provide a valid JSON string."
+    # Validate the JSON content
+    if not json_content or not json_content.strip():
+        return "❌ ERROR: JSON content is empty or contains only whitespace. Please provide valid JSON."
     
     try:
         # Parse the JSON to check syntax
-        parsed = json.loads(json_string)
+        parsed = json.loads(json_content)
         
         # Basic structure validation
         validation_checks = []
@@ -117,8 +136,8 @@ def validate_json(json_string: str, file_path: Optional[str] = None) -> str:
         result_parts.append(f"Location: Line {e.lineno}, Column {e.colno}")
         
         # Show the problematic line if possible
-        if e.lineno and json_string:
-            lines = json_string.split('\n')
+        if e.lineno and json_content:
+            lines = json_content.split('\n')
             if e.lineno <= len(lines):
                 problem_line = lines[e.lineno - 1]
                 result_parts.append(f"Problem line: {problem_line}")

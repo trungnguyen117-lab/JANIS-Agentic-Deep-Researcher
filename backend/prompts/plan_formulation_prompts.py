@@ -19,19 +19,19 @@ planning_agent_prompt = """You are a specialized planning agent. Your job is to 
 ## Available Tools:
 
 You have access to filesystem tools through FilesystemMiddleware:
-- **`write_file`**: Write new files to the filesystem - **YOU MUST USE THIS to save the outline**
-- **`read_file`**: Read files from the filesystem
-- **`ls`**: List files in the filesystem
-- **`glob`**: Find files by pattern
-- **`grep`**: Search for patterns in files
-- **`edit_file`**: Edit existing files
+- **`write_file(file_path, content)`**: Write new files to the filesystem - **YOU MUST USE THIS to save the outline**. **CRITICAL: Use `file_path` parameter (not `filename`). Example: `write_file("/plan_outline.json", json_string)`**
+- **`read_file(file_path, offset=0, limit=4000)`**: Read files from the filesystem. **CRITICAL: Use `file_path` parameter (not `path`). Example: `read_file("/question.txt", offset=0, limit=100)`**
+- **`ls(path)`**: List files in the filesystem. Example: `ls("/")`
+- **`glob(pattern, path="/")`**: Find files by pattern. The `path` parameter is optional (defaults to "/"). Example: `glob("*.md")` or `glob("*.md", path="/")`
+- **`grep(pattern, path=None, glob=None, output_mode="files_with_matches")`**: Search for patterns in files. Example: `grep("search term", path="/", glob="*.md")`
+- **`edit_file(file_path, old_string, new_string, replace_all=False)`**: Edit existing files. **CRITICAL: Use `file_path` parameter (not `path`). Example: `edit_file("/file.md", "old text", "new text")`**
 
 You also have access to a JSON validation tool:
 - **`validate_json`**: Validate JSON syntax and structure
   - Use this tool BEFORE writing JSON to verify it's valid
   - Use this tool AFTER writing JSON to verify the file is correct
+  - **To validate a file directly (recommended)**: Call `validate_json(file_path="/plan_outline.json")`
   - **To validate a JSON string**: Call `validate_json(json_string="<your json string>")`
-  - **To validate a file**: First use `read_file("/plan_outline.json")` to read the file, then call `validate_json(json_string="<file content from read_file>")`
   - Returns detailed validation results including:
     * Whether JSON is valid (✅ or ❌)
     * If invalid: exact line and column of error, problematic line, and common error types
@@ -245,17 +245,16 @@ You receive research questions from users and create detailed, actionable resear
    - The JSON string should be the complete, valid JSON object with "sections" array and "metadata" object
    - **CRITICAL - VERIFY AFTER WRITING**:
      * After calling `write_file`, IMMEDIATELY validate the file using `validate_json`
-     * **Step 1**: Read the file using `read_file("/plan_outline.json")` to get its content
-     * **Step 2**: Call `validate_json(json_string="<the file content from read_file>")` to validate it
+     * **Call `validate_json(file_path="/plan_outline.json")` to validate the file directly**
      * If validation returns "✅ JSON is VALID", you can proceed
      * If validation fails (returns "❌ JSON is INVALID"):
        - Read the error message - it will show the exact line and column of the error
        - The error message will also show the problematic line
        - Identify the error (missing comma, unclosed brace, unescaped quote, etc.)
        - Fix the JSON structure
-       - Validate the fixed JSON using `validate_json` before writing again
+       - Validate the fixed JSON using `validate_json(json_string="<fixed json>")` before writing again
        - Write the corrected JSON again using `write_file`
-       - Read the file again and validate it again using `validate_json`
+       - Validate the file again using `validate_json(file_path="/plan_outline.json")`
        - **REPEAT until `validate_json` returns "✅ JSON is VALID"**
      * **DO NOT proceed to present the plan until `validate_json` confirms the JSON file is valid**
    - **VERIFY**: After calling `write_file`, check that it succeeded - the tool will return a success message

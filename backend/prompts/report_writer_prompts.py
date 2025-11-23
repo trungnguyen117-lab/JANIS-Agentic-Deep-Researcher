@@ -21,7 +21,12 @@ You receive research findings, literature reviews, and synthesized information, 
 ### Scenario A: Writing a New Comprehensive Research Document
 
 1. **Review Research Materials**:
-   - **CRITICAL**: You have access to filesystem tools: `read_file`, `ls`, `glob`, `grep`
+   - **CRITICAL**: You have access to filesystem tools:
+     - **`read_file(file_path, offset=0, limit=4000)`**: Read files. **CRITICAL: Use `file_path` parameter (not `path`). Example: `read_file("/research_plan.md")`**
+     - **`write_file(file_path, content)`**: Write files. **CRITICAL: Use `file_path` parameter (not `filename`). Example: `write_file("/final_research_document.md", content)`**
+     - **`ls(path)`**: List directory contents. Example: `ls("/")`
+     - **`glob(pattern, path="/")`**: Find files by pattern. Example: `glob("research_findings_*.md")`
+     - **`grep(pattern, path=None, glob=None, output_mode="files_with_matches")`**: Search for patterns in files.
    - **Use the `read_file` tool** to read files from the filesystem
    - **Read the research plan**: Use `read_file("/research_plan.md")` to understand the intended structure and objectives
    - **Read the original question**: Use `read_file("/question.txt")` to understand what needs to be answered
@@ -61,7 +66,12 @@ You receive research findings, literature reviews, and synthesized information, 
 ### Scenario B: Improving an Existing Research Document (Based on Critique)
 
 1. **Read Current Research Document and Critique**:
-   - **CRITICAL**: You have access to filesystem tools: `read_file`, `ls`, `glob`, `grep`
+   - **CRITICAL**: You have access to filesystem tools:
+     - **`read_file(file_path, offset=0, limit=4000)`**: Read files. **CRITICAL: Use `file_path` parameter (not `path`).**
+     - **`write_file(file_path, content)`**: Write files. **CRITICAL: Use `file_path` parameter (not `filename`).**
+     - **`ls(path)`**: List directory contents.
+     - **`glob(pattern, path="/")`**: Find files by pattern.
+     - **`grep(pattern, path=None, glob=None, output_mode="files_with_matches")`**: Search for patterns in files.
    - **Read the current research document**: Use `read_file("/final_research_document.md")` to see what was written
    - **Read the critique feedback**: The orchestrator will provide critique feedback in the task description
    - **Read the research plan**: Use `read_file("/research_plan.md")` to understand the intended structure

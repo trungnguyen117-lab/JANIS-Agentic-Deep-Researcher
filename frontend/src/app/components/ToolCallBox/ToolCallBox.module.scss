@@ -44,6 +44,23 @@
   color: var(--color-text-primary);
 }
 
+.uniqueId {
+  font-size: 10px;
+  font-weight: $font-weight-semibold;
+  color: var(--color-primary);
+  font-family: $font-family-mono;
+  background-color: var(--color-border-light);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: $spacing-sm;
+  opacity: 1;
+  cursor: help;
+  border: 1px solid var(--color-border);
+  display: inline-block;
+  min-width: 40px;
+  text-align: center;
+}
+
 .description {
   font-size: $font-size-sm;
   color: var(--color-text-secondary);

@@ -429,6 +429,85 @@ def _create_task_tool(
         
         return tool_calls
 
+    def _serialize_tool_calls(tool_calls: Any) -> list[dict[str, Any]]:
+        """Convert tool_calls payloads (objects or dicts) into serializable dicts."""
+        import json
+        
+        if not tool_calls:
+            return []
+        
+        serialized_calls = []
+        for idx, tc in enumerate(tool_calls):
+            if isinstance(tc, dict):
+                tc_id = tc.get("id") or f"subagent-tool-{idx}"
+                tc_name = tc.get("name") or tc.get("function", {}).get("name") or "unknown"
+                tc_args = tc.get("args") or tc.get("function", {}).get("arguments") or {}
+            else:
+                tc_id = getattr(tc, "id", None) or f"subagent-tool-{idx}"
+                tc_name = getattr(tc, "name", None)
+                if not tc_name and hasattr(tc, "function"):
+                    tc_name = getattr(tc.function, "name", None)
+                tc_args = getattr(tc, "args", None)
+                if tc_args is None and hasattr(tc, "function"):
+                    tc_args = getattr(tc.function, "arguments", None)
+                if tc_args is None and hasattr(tc, "json_args"):
+                    tc_args = getattr(tc, "json_args", None)
+            if isinstance(tc_args, str):
+                try:
+                    tc_args = json.loads(tc_args)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            serialized_calls.append(
+                {
+                    "id": tc_id,
+                    "name": tc_name or "unknown",
+                    "args": tc_args if tc_args is not None else {},
+                }
+            )
+        return serialized_calls
+    
+    def _strip_tool_calls_from_message(message: AIMessage) -> AIMessage:
+        """Return a deep copy of the message without tool call metadata.
+        
+        OpenAI requires every tool_call to have a matching ToolMessage response.
+        When we replay sub-agent AIMessages in the main thread we must remove
+        the nested tool call payloads so the orchestrator doesn't try to satisfy
+        sub-agent tool calls itself.
+        """
+        msg_copy = deepcopy(message)
+        serialized_calls = _serialize_tool_calls(getattr(msg_copy, "tool_calls", []))
+        if hasattr(msg_copy, "tool_calls"):
+            msg_copy.tool_calls = []
+        
+        additional_kwargs = getattr(msg_copy, "additional_kwargs", None)
+        if isinstance(additional_kwargs, dict):
+            additional_kwargs.pop("tool_calls", None)
+            additional_kwargs.pop("function_call", None)
+            msg_copy.additional_kwargs = additional_kwargs
+        else:
+            msg_copy.additional_kwargs = {}
+        
+        if serialized_calls:
+            msg_copy.additional_kwargs["_subagent_tool_calls"] = serialized_calls
+        
+        return msg_copy
+    
+    def _prepare_subagent_ai_message(
+        message: AIMessage,
+        *,
+        parent_tool_call_id: str,
+        subagent_type: str | None,
+    ) -> AIMessage:
+        """Create a sanitized AIMessage annotated with sub-agent metadata."""
+        msg_copy = _strip_tool_calls_from_message(message)
+        if not hasattr(msg_copy, "additional_kwargs") or msg_copy.additional_kwargs is None:
+            msg_copy.additional_kwargs = {}
+        msg_copy.additional_kwargs["_subagent_source"] = {
+            "tool_call_id": parent_tool_call_id,
+            "subagent_type": subagent_type,
+        }
+        return msg_copy
+
     def _return_command_with_state_update(result: dict, tool_call_id: str, subagent_type: str = None, accumulated_tool_calls_map: dict = None) -> Command:
         state_update = {k: v for k, v in result.items() if k not in _EXCLUDED_STATE_KEYS}
         
@@ -502,58 +581,50 @@ def _create_task_tool(
         else:
             logging.warning("[SubAgent] ToolMessage does not have additional_kwargs attribute!")
         
-        # KEY INSIGHT: Main agent tool calls work because they're in AIMessages that are part of the
-        # main thread's message history. Sub-agent AIMessages are isolated and never added to main thread.
-        # 
-        # Solution: Include sub-agent's AIMessages (with tool_calls) in the main thread's messages,
-        # but mark them with metadata so frontend knows they're from a sub-agent.
-        # This ensures they're serialized/deserialized just like main agent messages.
-        
-        messages_to_add = [tool_message]  # Always include the ToolMessage
-        
-        # Include sub-agent's AIMessages in the main thread so their tool_calls are preserved
-        # Mark them with metadata indicating they're from a sub-agent
-        # IMPORTANT: Remove tool_calls from sub-agent AIMessages before adding to main thread
-        # because those tool_calls are for sub-agent's tools, not main agent's tools.
-        # If we include them, the main agent's model calls will fail with incomplete tool call sequences.
-        if result.get("messages"):
-            for msg in result["messages"]:
-                # Only include AIMessages (they have tool_calls)
-                if isinstance(msg, AIMessage):
-                    # Create a copy of the message without tool_calls to avoid breaking main agent's model calls
-                    # The tool_calls are already stored in subagent_tool_calls_map for frontend access
-                    msg_copy = deepcopy(msg)
-                    # Remove tool_calls to prevent OpenAI API errors
-                    if hasattr(msg_copy, "tool_calls"):
-                        msg_copy.tool_calls = []
-                    # Add metadata to indicate this is from a sub-agent
-                    if not hasattr(msg_copy, "additional_kwargs") or msg_copy.additional_kwargs is None:
-                        msg_copy.additional_kwargs = {}
-                    msg_copy.additional_kwargs["_subagent_source"] = {
-                        "tool_call_id": tool_call_id,
-                        "subagent_type": subagent_type,
-                    }
-                    messages_to_add.append(msg_copy)
+        # CRITICAL: Only add the ToolMessage to the main thread's message history.
+        # Do NOT add sub-agent AIMessages to the main thread, as this breaks OpenAI's
+        # tool call validation (it expects ToolMessages immediately after AIMessages with tool_calls).
+        # Sub-agent AIMessages are only used for frontend streaming via stream_writer.
+        messages_to_add = [tool_message]  # Only the ToolMessage goes to main thread
         
         # Also store sub-agent tool calls in state for reliable frontend access
         # This is a fallback in case additional_kwargs is not preserved during serialization
         update_dict = {
                 **state_update,
-            "messages": messages_to_add,  # Include both ToolMessage and sub-agent AIMessages
+            "messages": messages_to_add,  # Only ToolMessage, no sub-agent AIMessages
         }
         
         # Store sub-agent tool calls in state with key: subagent_tool_calls_map
         # Format: {tool_call_id: {"tool_calls": [...], "subagent_type": ...}}
-        # Merge with accumulated tool calls from streaming to preserve real-time updates
+        # CRITICAL: Only use accumulated tool calls from THIS sub-agent invocation
+        # Do NOT merge with state_update's map as it contains tool calls from ALL sub-agents
+        # Each sub-agent invocation has a unique tool_call_id, so we only need its own tool calls
         tool_calls_map = {}
         if accumulated_tool_calls_map:
-            # Start with accumulated tool calls from streaming
+            # Start with accumulated tool calls from streaming (only for THIS sub-agent)
             tool_calls_map = accumulated_tool_calls_map.copy()
         else:
-            # Fallback: get existing map from state_update
-            tool_calls_map = state_update.get("subagent_tool_calls_map", {})
-            if not isinstance(tool_calls_map, dict):
+            # Fallback: get existing map from state_update, but ONLY for this tool_call_id
+            # This ensures we don't accidentally include tool calls from other sub-agents
+            existing_map = state_update.get("subagent_tool_calls_map", {})
+            if isinstance(existing_map, dict) and tool_call_id in existing_map:
+                # Only include the entry for THIS tool_call_id
+                tool_calls_map = {tool_call_id: existing_map[tool_call_id].copy()}
+            else:
                 tool_calls_map = {}
+        
+        # CRITICAL: Build a map of tool call IDs to their ToolMessages for status updates
+        # This ensures last few tools that arrived after streaming get their status updated
+        tool_call_results = {}
+        if "messages" in result:
+            for msg in result["messages"]:
+                if isinstance(msg, ToolMessage):
+                    tool_call_id_from_msg = getattr(msg, "tool_call_id", None)
+                    if tool_call_id_from_msg:
+                        if hasattr(msg, "content"):
+                            tool_call_results[tool_call_id_from_msg] = msg.content
+                        elif hasattr(msg, "text"):
+                            tool_call_results[tool_call_id_from_msg] = msg.text
         
         # Merge tool calls from final result (if any) with accumulated ones
         if subagent_tool_calls:
@@ -565,11 +636,69 @@ def _create_task_tool(
             # Merge final tool calls (avoid duplicates by ID)
             existing_ids = {tc.get("id") for tc in tool_calls_map[tool_call_id].get("tool_calls", [])}
             new_tool_calls = [tc for tc in subagent_tool_calls if tc.get("id") not in existing_ids]
+            
+            # CRITICAL: Update status for new tool calls based on ToolMessages
+            for tc in new_tool_calls:
+                tc_id = tc.get("id")
+                if tc_id in tool_call_results:
+                    tc["status"] = "completed"
+                    tc["result"] = tool_call_results[tc_id]
+                else:
+                    tc["status"] = "pending"
+            
             tool_calls_map[tool_call_id]["tool_calls"].extend(new_tool_calls)
+            
+            # CRITICAL: Also update status for existing tool calls if ToolMessages exist
+            # This ensures last few tools that arrived after streaming get their status updated
+            for existing_tc in tool_calls_map[tool_call_id]["tool_calls"]:
+                tc_id = existing_tc.get("id")
+                if tc_id in tool_call_results and existing_tc.get("status") != "completed":
+                    existing_tc["status"] = "completed"
+                    existing_tc["result"] = tool_call_results[tc_id]
         
-        # Always set the map (even if empty) to ensure it's persisted
+        # CRITICAL: Handle parallel sub-agents correctly
+        # When multiple sub-agents run in parallel, each has a unique tool_call_id
+        # We need to:
+        # 1. Preserve ALL existing sub-agents' entries in the state map
+        # 2. Only update/add the entry for THIS tool_call_id
+        # 3. Ensure tool calls from different sub-agents don't get mixed
         if tool_calls_map:
-            update_dict["subagent_tool_calls_map"] = tool_calls_map
+            # Get existing map from state to preserve ALL other sub-agents' entries
+            # This is critical for parallel execution - we must not overwrite other sub-agents' tool calls
+            existing_state_map = state_update.get("subagent_tool_calls_map", {})
+            if not isinstance(existing_state_map, dict):
+                existing_state_map = {}
+            
+            # Merge: preserve ALL existing entries, update/add only this tool_call_id's entry
+            # This ensures parallel sub-agents don't interfere with each other
+            merged_map = existing_state_map.copy()
+            
+            # Only update/add entries from tool_calls_map (which only contains THIS sub-agent's tool calls)
+            # tool_calls_map is keyed by tool_call_id, so this only affects the current sub-agent
+            for key, value in tool_calls_map.items():
+                # Verify this is the expected tool_call_id (safety check)
+                if key == tool_call_id:
+                    merged_map[key] = value
+                else:
+                    # This shouldn't happen, but log if it does
+                    import logging
+                    logging.warning(
+                        f"[SubAgent] _return_command_with_state_update: Unexpected tool_call_id in map: "
+                        f"expected={tool_call_id}, found={key}, subagent_type={subagent_type}"
+                    )
+            
+            # Log to help debug tool call isolation issues, especially for parallel sub-agents
+            import logging
+            logging.info(
+                f"[SubAgent] _return_command_with_state_update: Updating tool calls map for tool_call_id={tool_call_id}, "
+                f"subagent_type={subagent_type}, "
+                f"tool_calls_count={len(tool_calls_map.get(tool_call_id, {}).get('tool_calls', []))}, "
+                f"existing_map_keys={list(existing_state_map.keys())}, "
+                f"merged_map_keys={list(merged_map.keys())}, "
+                f"parallel_subagents={len(existing_state_map) > 1}"
+            )
+            
+            update_dict["subagent_tool_calls_map"] = merged_map
             
         
         return Command(update=update_dict)
@@ -651,8 +780,16 @@ def _create_task_tool(
         final_result = None
         accumulated_messages = []
         seen_message_ids = set()
-        accumulated_tool_calls_map = {}  # Accumulate tool calls during streaming
-        accumulated_tool_calls_map = {}  # Accumulate tool calls during streaming
+        # CRITICAL: Accumulate tool calls during streaming for THIS sub-agent only
+        # Each sub-agent invocation has a unique tool_call_id (runtime.tool_call_id)
+        # This map is keyed by tool_call_id, so it only contains tool calls for the current sub-agent
+        # When multiple sub-agents run in parallel, each has its own accumulated_tool_calls_map
+        accumulated_tool_calls_map = {}
+        # CRITICAL: Accumulate tool calls during streaming for THIS sub-agent only
+        # Each sub-agent invocation has a unique tool_call_id (runtime.tool_call_id)
+        # This map is keyed by tool_call_id, so it only contains tool calls for the current sub-agent
+        # When multiple sub-agents run in parallel, each has its own accumulated_tool_calls_map
+        accumulated_tool_calls_map = {}
         
         # Use both "updates" and "values" modes to get both incremental updates and full state
         # "updates" gives us state deltas, "values" gives us full state including messages
@@ -738,13 +875,12 @@ def _create_task_tool(
                                         messages_to_add_to_main = []
                                         for msg in truly_new_messages:
                                             if isinstance(msg, AIMessage):
-                                                if not hasattr(msg, "additional_kwargs") or msg.additional_kwargs is None:
-                                                    msg.additional_kwargs = {}
-                                                msg.additional_kwargs["_subagent_source"] = {
-                                                    "tool_call_id": runtime.tool_call_id,
-                                                    "subagent_type": subagent_type,
-                                                }
-                                                messages_to_add_to_main.append(msg)
+                                                msg_copy = _prepare_subagent_ai_message(
+                                                    msg,
+                                                    parent_tool_call_id=runtime.tool_call_id,
+                                                    subagent_type=subagent_type,
+                                                )
+                                                messages_to_add_to_main.append(msg_copy)
                                         
                                         current_map = {}
                                         try:
@@ -785,22 +921,22 @@ def _create_task_tool(
                                         logging.error(f"Failed to update state during sub-agent streaming: {e}", exc_info=True)
                     
                     # Handle "updates" mode (state deltas)
-                    elif stream_mode == "updates" and isinstance(state_update, dict) and "messages" in state_update:
+                elif stream_mode == "updates" and isinstance(state_update, dict) and "messages" in state_update:
                     # Get new messages from this update
                     # Note: state_update["messages"] might be the full list or just new messages
                     # We need to track which messages we've already seen
-                        # Handle Overwrite objects that might wrap the messages
-                        messages_raw = state_update.get("messages", [])
-                        
-                        # Extract actual value if it's wrapped in Overwrite
-                        if isinstance(messages_raw, Overwrite):
-                            new_messages = messages_raw.value if hasattr(messages_raw, "value") else []
-                        elif isinstance(messages_raw, dict) and "__overwrite__" in messages_raw:
-                            # Handle JSON format with __overwrite__ key
-                            new_messages = messages_raw["__overwrite__"]
-                        else:
-                            new_messages = messages_raw if isinstance(messages_raw, list) else []
-                        
+                    # Handle Overwrite objects that might wrap the messages
+                    messages_raw = state_update.get("messages", [])
+                    
+                    # Extract actual value if it's wrapped in Overwrite
+                    if isinstance(messages_raw, Overwrite):
+                        new_messages = messages_raw.value if hasattr(messages_raw, "value") else []
+                    elif isinstance(messages_raw, dict) and "__overwrite__" in messages_raw:
+                        # Handle JSON format with __overwrite__ key
+                        new_messages = messages_raw["__overwrite__"]
+                    else:
+                        new_messages = messages_raw if isinstance(messages_raw, list) else []
+                    
                     if new_messages:
                         # Filter out messages we've already seen (to avoid duplicates)
                         truly_new_messages = [
@@ -837,28 +973,13 @@ def _create_task_tool(
                                     
                                     for msg in truly_new_messages:
                                         if isinstance(msg, AIMessage):
-                                            # Message WITH tool_calls for display (frontend will see this in stream.messages)
-                                            msg_with_tool_calls = deepcopy(msg)
-                                            # Keep tool_calls for display
-                                            if not hasattr(msg_with_tool_calls, "additional_kwargs") or msg_with_tool_calls.additional_kwargs is None:
-                                                msg_with_tool_calls.additional_kwargs = {}
-                                            msg_with_tool_calls.additional_kwargs["_subagent_source"] = {
-                                                "tool_call_id": runtime.tool_call_id,
-                                            "subagent_type": subagent_type,
-                                            }
-                                            messages_with_tool_calls_for_display.append(msg_with_tool_calls)
-                                            
-                                            # Message WITHOUT tool_calls for main agent's history (prevents OpenAI errors)
-                                            msg_without_tool_calls = deepcopy(msg)
-                                            if hasattr(msg_without_tool_calls, "tool_calls"):
-                                                msg_without_tool_calls.tool_calls = []
-                                            if not hasattr(msg_without_tool_calls, "additional_kwargs") or msg_without_tool_calls.additional_kwargs is None:
-                                                msg_without_tool_calls.additional_kwargs = {}
-                                            msg_without_tool_calls.additional_kwargs["_subagent_source"] = {
-                                            "tool_call_id": runtime.tool_call_id,
-                                                "subagent_type": subagent_type,
-                                            }
-                                            messages_without_tool_calls_for_history.append(msg_without_tool_calls)
+                                            prepared_msg = _prepare_subagent_ai_message(
+                                                msg,
+                                                parent_tool_call_id=runtime.tool_call_id,
+                                                subagent_type=subagent_type,
+                                            )
+                                            messages_with_tool_calls_for_display.append(prepared_msg)
+                                            messages_without_tool_calls_for_history.append(deepcopy(prepared_msg))
                                         elif isinstance(msg, ToolMessage):
                                             # ToolMessages contain results - stream them IMMEDIATELY, one at a time
                                             # Just like main agent: each ToolMessage is added to state as soon as the tool completes
@@ -893,10 +1014,29 @@ def _create_task_tool(
                                                     except Exception:
                                                         pass
                                                     
-                                                    # Stream this single ToolMessage immediately
+                                                    # CRITICAL: Update tool call status to "completed" when ToolMessage arrives
+                                                    # Extract tool_call_id from the ToolMessage
+                                                    tool_call_id_from_msg = getattr(msg_copy, "tool_call_id", None)
+                                                    if tool_call_id_from_msg and runtime.tool_call_id in current_map_for_tool:
+                                                        # Find the tool call in the map and update its status
+                                                        tool_calls_list = current_map_for_tool[runtime.tool_call_id].get("tool_calls", [])
+                                                        for tc in tool_calls_list:
+                                                            if tc.get("id") == tool_call_id_from_msg:
+                                                                tc["status"] = "completed"
+                                                                # Also add the result content
+                                                                if hasattr(msg_copy, "content"):
+                                                                    tc["result"] = msg_copy.content
+                                                                elif hasattr(msg_copy, "text"):
+                                                                    tc["result"] = msg_copy.text
+                                                                break
+                                                    
+                                                    # Update accumulated map so subsequent streams have the updated status
+                                                    accumulated_tool_calls_map = current_map_for_tool.copy()
+                                                    
+                                                    # Stream this single ToolMessage immediately with updated map
                                                     stream_update_immediate = {
                                                         "messages": [msg_copy],  # Stream this ONE ToolMessage immediately
-                                                        "subagent_tool_calls_map": current_map_for_tool,
+                                                        "subagent_tool_calls_map": current_map_for_tool,  # Map with updated "completed" status
                                                     }
                                                     runtime.stream_writer(stream_update_immediate)
                                                 except Exception as e:
@@ -917,30 +1057,57 @@ def _create_task_tool(
                                     except Exception:
                                         pass
                                     
+                                    # CRITICAL: Initialize map entry if it doesn't exist (needed for streaming)
+                                    if runtime.tool_call_id not in current_map:
+                                        current_map[runtime.tool_call_id] = {
+                                            "tool_calls": [],
+                                            "subagent_type": subagent_type,
+                                        }
+                                    
                                     # Merge new tool calls into map
                                     has_new_tool_calls = False
                                     if subagent_tool_calls:
-                                        if runtime.tool_call_id not in current_map:
-                                            current_map[runtime.tool_call_id] = {
-                                                "tool_calls": [],
-                                                "subagent_type": subagent_type,
-                                            }
                                         # Append new tool calls (avoid duplicates by ID)
                                         existing_ids = {tc.get("id") for tc in current_map[runtime.tool_call_id].get("tool_calls", [])}
                                         new_tool_calls = [tc for tc in subagent_tool_calls if tc.get("id") not in existing_ids]
                                         if new_tool_calls:
                                             has_new_tool_calls = True
+                                            # Ensure all new tool calls have status "pending" if no result yet
+                                            for tc in new_tool_calls:
+                                                if "status" not in tc:
+                                                    tc["status"] = "pending"
                                             current_map[runtime.tool_call_id]["tool_calls"].extend(new_tool_calls)
                                             # Update accumulated map for final state update
                                             accumulated_tool_calls_map = current_map.copy()
                                     
-                                    # Use stream_writer to add messages WITH tool_calls/results to the messages state
-                                    # This makes sub-agent tool calls AND results appear in stream.messages in real-time
-                                    # AIMessages show tool calls as "pending", ToolMessages update them to "completed"
-                                    # CRITICAL: ToolMessages are already streamed individually above, so only stream AIMessages here
-                                    # This prevents duplicate ToolMessages and ensures real-time updates like the main agent
+                                    # CRITICAL FIX: Stream AIMessages immediately when they arrive, even if tool calls aren't extracted yet
+                                    # This ensures tool calls appear in the frontend as soon as they're available
+                                    # ToolMessages are already streamed individually above, so we stream AIMessages here
                                     ai_messages_only = [m for m in messages_with_tool_calls_for_display if isinstance(m, AIMessage)]
-                                    if (ai_messages_only and hasattr(runtime, "stream_writer") and runtime.stream_writer) and has_new_tool_calls:
+                                    has_ai_messages = len(ai_messages_only) > 0
+                                    
+                                    # CRITICAL: Check if AIMessage has tool_calls (even if not extracted yet)
+                                    # We need to stream immediately when AIMessage with tool_calls arrives, so frontend shows "spinning"
+                                    has_ai_with_tool_calls = False
+                                    for msg in truly_new_messages:
+                                        if isinstance(msg, AIMessage):
+                                            if (hasattr(msg, "tool_calls") and msg.tool_calls) or \
+                                               (hasattr(msg, "additional_kwargs") and msg.additional_kwargs and 
+                                                ("tool_calls" in msg.additional_kwargs or "_subagent_tool_calls" in msg.additional_kwargs)):
+                                                has_ai_with_tool_calls = True
+                                                break
+                                    
+                                    # CRITICAL: Stream if we have new tool calls OR status updates from ToolMessages
+                                    # We MUST stream when ToolMessages update status, even if no new tool calls were added
+                                    # This ensures tool calls transition from "pending" (spinning) to "completed" (green checkmark)
+                                    should_stream_ai = (
+                                        ai_messages_only and 
+                                        hasattr(runtime, "stream_writer") and 
+                                        runtime.stream_writer and
+                                        (has_new_tool_calls or has_ai_messages or has_ai_with_tool_calls or has_tool_messages_in_batch)
+                                    )
+                                    
+                                    if should_stream_ai:
                                         try:
                                             # Stream AIMessages with tool_calls (ToolMessages are already streamed individually above)
                                             # This matches main agent behavior: AIMessage appears first, then ToolMessages appear one by one
@@ -1029,7 +1196,11 @@ def _create_task_tool(
         final_result = None
         accumulated_messages = []
         seen_message_ids = set()
-        accumulated_tool_calls_map = {}  # Accumulate tool calls during streaming
+        # CRITICAL: Accumulate tool calls during streaming for THIS sub-agent only
+        # Each sub-agent invocation has a unique tool_call_id (runtime.tool_call_id)
+        # This map is keyed by tool_call_id, so it only contains tool calls for the current sub-agent
+        # When multiple sub-agents run in parallel, each has its own accumulated_tool_calls_map
+        accumulated_tool_calls_map = {}
         
         # Use both "updates" and "values" modes to get both incremental updates and full state
         # "updates" gives us state deltas, "values" gives us full state including messages
@@ -1114,88 +1285,142 @@ def _create_task_tool(
                             # Add to accumulated messages
                             accumulated_messages.extend(truly_new_messages)
                             
-                            # Extract tool calls and update state during streaming
-                            subagent_tool_calls = _extract_subagent_tool_calls(truly_new_messages)
+                            # Get current subagent_tool_calls_map from accumulated map and state FIRST
+                            # This is needed before we process messages to update their status
+                            current_map = accumulated_tool_calls_map.copy()
+                            try:
+                                if hasattr(runtime, "state") and runtime.state:
+                                    state_map = runtime.state.get("subagent_tool_calls_map", {})
+                                    if isinstance(state_map, dict):
+                                        # Merge state map into current_map
+                                        for key, value in state_map.items():
+                                            if key not in current_map:
+                                                current_map[key] = value
+                            except Exception:
+                                pass
+                            
+                            # CRITICAL: Initialize map entry if it doesn't exist (needed for streaming)
+                            if runtime.tool_call_id not in current_map:
+                                current_map[runtime.tool_call_id] = {
+                                    "tool_calls": [],
+                                    "subagent_type": subagent_type,
+                                }
+                            
+                            # CRITICAL: Extract tool calls from AIMessages ONLY first (to get "pending" status)
+                            # Then we'll update to "completed" when ToolMessages arrive
+                            ai_messages_only = [msg for msg in truly_new_messages if isinstance(msg, AIMessage)]
+                            subagent_tool_calls_from_ai = _extract_subagent_tool_calls(ai_messages_only) if ai_messages_only else []
                             
                             # ALWAYS send updates for new messages to enable real-time streaming
                             # This ensures frontend sees messages as they arrive, not just at the end
                             try:
-                                # Create messages WITH tool_calls for real-time display (via stream_writer)
-                                # These will appear in stream.messages and show tool calls as they happen
                                 messages_with_tool_calls_for_display = []
-                                # Create messages WITHOUT tool_calls for main agent's message history
                                 messages_without_tool_calls_for_history = []
                                 
+                                # Process messages for display
                                 for msg in truly_new_messages:
                                     if isinstance(msg, AIMessage):
-                                        # Message WITH tool_calls for display (frontend will see this in stream.messages)
-                                        msg_with_tool_calls = deepcopy(msg)
-                                        # Keep tool_calls for display
-                                        if not hasattr(msg_with_tool_calls, "additional_kwargs") or msg_with_tool_calls.additional_kwargs is None:
-                                            msg_with_tool_calls.additional_kwargs = {}
-                                        msg_with_tool_calls.additional_kwargs["_subagent_source"] = {
+                                        prepared_msg = _prepare_subagent_ai_message(
+                                            msg,
+                                            parent_tool_call_id=runtime.tool_call_id,
+                                            subagent_type=subagent_type,
+                                        )
+                                        messages_with_tool_calls_for_display.append(prepared_msg)
+                                        messages_without_tool_calls_for_history.append(deepcopy(prepared_msg))
+                                    elif isinstance(msg, ToolMessage):
+                                        # ToolMessages should also be included for real-time display
+                                        msg_copy = deepcopy(msg)
+                                        if not hasattr(msg_copy, "additional_kwargs") or msg_copy.additional_kwargs is None:
+                                            msg_copy.additional_kwargs = {}
+                                        msg_copy.additional_kwargs["_subagent_source"] = {
                                             "tool_call_id": runtime.tool_call_id,
                                             "subagent_type": subagent_type,
                                         }
-                                        messages_with_tool_calls_for_display.append(msg_with_tool_calls)
-                                        
-                                        # Message WITHOUT tool_calls for main agent's history (prevents OpenAI errors)
-                                        msg_without_tool_calls = deepcopy(msg)
-                                        if hasattr(msg_without_tool_calls, "tool_calls"):
-                                            msg_without_tool_calls.tool_calls = []
-                                        if not hasattr(msg_without_tool_calls, "additional_kwargs") or msg_without_tool_calls.additional_kwargs is None:
-                                            msg_without_tool_calls.additional_kwargs = {}
-                                        msg_without_tool_calls.additional_kwargs["_subagent_source"] = {
-                                            "tool_call_id": runtime.tool_call_id,
-                                            "subagent_type": subagent_type,
-                                        }
-                                        messages_without_tool_calls_for_history.append(msg_without_tool_calls)
+                                        messages_with_tool_calls_for_display.append(msg_copy)
+                                        messages_without_tool_calls_for_history.append(msg_copy)
                                 
-                                # Get current subagent_tool_calls_map from accumulated map and state
-                                current_map = accumulated_tool_calls_map.copy()
-                                try:
-                                    if hasattr(runtime, "state") and runtime.state:
-                                        state_map = runtime.state.get("subagent_tool_calls_map", {})
-                                        if isinstance(state_map, dict):
-                                            # Merge state map into current_map
-                                            for key, value in state_map.items():
-                                                if key not in current_map:
-                                                    current_map[key] = value
-                                except Exception:
-                                    pass
-                                
-                                # Merge new tool calls into map
+                                # CRITICAL: First, add tool calls from AIMessages with "pending" status
+                                # This ensures tool calls show as "spinning" when they first appear
                                 has_new_tool_calls = False
-                                if subagent_tool_calls:
-                                    if runtime.tool_call_id not in current_map:
-                                        current_map[runtime.tool_call_id] = {
-                                            "tool_calls": [],
-                                            "subagent_type": subagent_type,
-                                        }
+                                if subagent_tool_calls_from_ai:
                                     # Append new tool calls (avoid duplicates by ID)
                                     existing_ids = {tc.get("id") for tc in current_map[runtime.tool_call_id].get("tool_calls", [])}
-                                    new_tool_calls = [tc for tc in subagent_tool_calls if tc.get("id") not in existing_ids]
+                                    new_tool_calls = [tc for tc in subagent_tool_calls_from_ai if tc.get("id") not in existing_ids]
                                     if new_tool_calls:
                                         has_new_tool_calls = True
+                                        # Force all new tool calls to "pending" status (they come from AIMessages)
+                                        for tc in new_tool_calls:
+                                            tc["status"] = "pending"
+                                            # Remove result if present (shouldn't be, but just in case)
+                                            tc.pop("result", None)
                                         current_map[runtime.tool_call_id]["tool_calls"].extend(new_tool_calls)
                                         # Update accumulated map for final state update
                                         accumulated_tool_calls_map = current_map.copy()
                                 
-                                # Use stream_writer to add messages WITH tool_calls/results to the messages state
-                                # This makes sub-agent tool calls AND results appear in stream.messages in real-time
-                                # AIMessages show tool calls as "pending", ToolMessages update them to "completed"
-                                # CRITICAL: Stream ToolMessages immediately when they arrive, even if there are no new tool calls
-                                # This ensures tool call status updates in real-time as each tool completes
-                                has_tool_messages = any(isinstance(m, ToolMessage) for m in messages_with_tool_calls_for_display)
-                                if (messages_with_tool_calls_for_display and hasattr(runtime, "stream_writer") and runtime.stream_writer) and (has_new_tool_calls or has_tool_messages):
+                                # CRITICAL: Then, update status of tool calls to "completed" when ToolMessages arrive
+                                # This ensures tool calls transition from "pending" (spinning) to "completed" (green checkmark)
+                                has_tool_messages = False
+                                status_updated = False
+                                for msg in truly_new_messages:
+                                    if isinstance(msg, ToolMessage):
+                                        has_tool_messages = True
+                                        tool_call_id_from_msg = getattr(msg, "tool_call_id", None)
+                                        if tool_call_id_from_msg and runtime.tool_call_id in current_map:
+                                            tool_calls_list = current_map[runtime.tool_call_id].get("tool_calls", [])
+                                            for tc in tool_calls_list:
+                                                if tc.get("id") == tool_call_id_from_msg:
+                                                    # Only update if status is not already "completed" (avoid unnecessary updates)
+                                                    if tc.get("status") != "completed":
+                                                        tc["status"] = "completed"
+                                                        status_updated = True
+                                                    # Also add the result content
+                                                    if hasattr(msg, "content"):
+                                                        tc["result"] = msg.content
+                                                    elif hasattr(msg, "text"):
+                                                        tc["result"] = msg.text
+                                                    break
+                                
+                                # Update accumulated map after status updates
+                                if has_tool_messages and status_updated:
+                                    accumulated_tool_calls_map = current_map.copy()
+                                
+                                # CRITICAL FIX: ALWAYS stream messages when they arrive, even if tool calls aren't extracted yet
+                                # This ensures AIMessages appear immediately in the frontend, and tool calls appear as soon as they're extracted
+                                # The frontend will show tool calls as "pending" initially, then update to "completed" when ToolMessages arrive
+                                has_ai_messages = any(isinstance(m, AIMessage) for m in messages_with_tool_calls_for_display)
+                                
+                                # CRITICAL: Check if AIMessage has tool_calls (even if not extracted yet)
+                                # We need to stream immediately when AIMessage with tool_calls arrives, so frontend shows "spinning"
+                                has_ai_with_tool_calls = False
+                                for msg in truly_new_messages:
+                                    if isinstance(msg, AIMessage):
+                                        if (hasattr(msg, "tool_calls") and msg.tool_calls) or \
+                                           (hasattr(msg, "additional_kwargs") and msg.additional_kwargs and 
+                                            ("tool_calls" in msg.additional_kwargs or "_subagent_tool_calls" in msg.additional_kwargs)):
+                                            has_ai_with_tool_calls = True
+                                            break
+                                
+                                # CRITICAL: Stream if we have new tool calls OR status updates from ToolMessages
+                                # We MUST stream when ToolMessages update status, even if no new tool calls were added
+                                # This ensures tool calls transition from "pending" (spinning) to "completed" (green checkmark)
+                                # status_updated indicates that tool call statuses were changed to "completed"
+                                should_stream = (
+                                    messages_with_tool_calls_for_display and 
+                                    hasattr(runtime, "stream_writer") and 
+                                    runtime.stream_writer and
+                                    (has_new_tool_calls or has_tool_messages or has_ai_messages or has_ai_with_tool_calls or status_updated)
+                                )
+                                
+                                if should_stream:
                                     try:
                                         # Add messages WITH tool_calls/results to the messages state for real-time display
                                         # These will appear in stream.messages and the frontend will:
-                                        # 1. Extract tool calls from AIMessages (status: "pending")
-                                        # 2. Update tool call status when ToolMessages arrive (status: "completed")
+                                        # 1. Extract tool calls from AIMessages (status: "pending") - shows as spinning
+                                        # 2. Update tool call status when ToolMessages arrive (status: "completed") - shows as green checkmark
+                                        # CRITICAL: Always include the updated map, even if only status changed (not new tool calls)
                                         stream_update = {
                                             "messages": messages_with_tool_calls_for_display,  # Messages WITH tool_calls/results for real-time display
-                                            "subagent_tool_calls_map": current_map,  # Also send the map as backup
+                                            "subagent_tool_calls_map": current_map,  # Map with updated statuses (pending → completed)
                                         }
                                         import logging
                                         logging.info(
@@ -1260,44 +1485,66 @@ def _create_task_tool(
                             # Add to accumulated messages
                             accumulated_messages.extend(truly_new_messages)
                             
-                            # Extract tool calls from new messages
-                            subagent_tool_calls = _extract_subagent_tool_calls(truly_new_messages)
+                            # Get current subagent_tool_calls_map from accumulated map and state FIRST
+                            current_map = accumulated_tool_calls_map.copy()
+                            try:
+                                if hasattr(runtime, "state") and runtime.state:
+                                    state_map = runtime.state.get("subagent_tool_calls_map", {})
+                                    if isinstance(state_map, dict):
+                                        # Merge state map into current_map
+                                        for key, value in state_map.items():
+                                            if key not in current_map:
+                                                current_map[key] = value
+                            except Exception:
+                                pass
+                            
+                            # CRITICAL: Initialize map entry if it doesn't exist (needed for streaming)
+                            if runtime.tool_call_id not in current_map:
+                                current_map[runtime.tool_call_id] = {
+                                    "tool_calls": [],
+                                    "subagent_type": subagent_type,
+                                }
+                            
+                            # CRITICAL: Extract tool calls from AIMessages ONLY first (to get "pending" status)
+                            # Then we'll update to "completed" when ToolMessages arrive
+                            ai_messages_only = [msg for msg in truly_new_messages if isinstance(msg, AIMessage)]
+                            subagent_tool_calls_from_ai = _extract_subagent_tool_calls(ai_messages_only) if ai_messages_only else []
                             
                             # Update state during streaming so frontend sees tool calls and results in real-time
                             # Stream ALL message types (AIMessages with tool_calls AND ToolMessages with results)
                             # Just like main agent: AIMessage → tool calls appear, ToolMessage → status updates to completed
-                            if subagent_tool_calls or any(isinstance(msg, (AIMessage, ToolMessage)) for msg in truly_new_messages):
+                            if subagent_tool_calls_from_ai or any(isinstance(msg, (AIMessage, ToolMessage)) for msg in truly_new_messages):
                                 try:
-                                    # Create messages WITH tool_calls/results for real-time display (via stream_writer)
-                                    # These will appear in stream.messages and show tool calls/results as they happen
                                     messages_with_tool_calls_for_display = []
-                                    # Create messages WITHOUT tool_calls for main agent's message history
                                     messages_without_tool_calls_for_history = []
+                                    
+                                    # CRITICAL: First, add tool calls from AIMessages with "pending" status
+                                    # This ensures tool calls show as "spinning" when they first appear
+                                    has_new_tool_calls = False
+                                    if subagent_tool_calls_from_ai:
+                                        # Append new tool calls (avoid duplicates by ID)
+                                        existing_ids = {tc.get("id") for tc in current_map[runtime.tool_call_id].get("tool_calls", [])}
+                                        new_tool_calls = [tc for tc in subagent_tool_calls_from_ai if tc.get("id") not in existing_ids]
+                                        if new_tool_calls:
+                                            has_new_tool_calls = True
+                                            # Force all new tool calls to "pending" status (they come from AIMessages)
+                                            for tc in new_tool_calls:
+                                                tc["status"] = "pending"
+                                                # Remove result if present (shouldn't be, but just in case)
+                                                tc.pop("result", None)
+                                            current_map[runtime.tool_call_id]["tool_calls"].extend(new_tool_calls)
+                                            # Update accumulated map for final state update
+                                            accumulated_tool_calls_map = current_map.copy()
                                     
                                     for msg in truly_new_messages:
                                         if isinstance(msg, AIMessage):
-                                            # Message WITH tool_calls for display (frontend will see this in stream.messages)
-                                            msg_with_tool_calls = deepcopy(msg)
-                                            # Keep tool_calls for display
-                                            if not hasattr(msg_with_tool_calls, "additional_kwargs") or msg_with_tool_calls.additional_kwargs is None:
-                                                msg_with_tool_calls.additional_kwargs = {}
-                                            msg_with_tool_calls.additional_kwargs["_subagent_source"] = {
-                                                "tool_call_id": runtime.tool_call_id,
-                                            "subagent_type": subagent_type,
-                                            }
-                                            messages_with_tool_calls_for_display.append(msg_with_tool_calls)
-                                            
-                                            # Message WITHOUT tool_calls for main agent's history (prevents OpenAI errors)
-                                            msg_without_tool_calls = deepcopy(msg)
-                                            if hasattr(msg_without_tool_calls, "tool_calls"):
-                                                msg_without_tool_calls.tool_calls = []
-                                            if not hasattr(msg_without_tool_calls, "additional_kwargs") or msg_without_tool_calls.additional_kwargs is None:
-                                                msg_without_tool_calls.additional_kwargs = {}
-                                            msg_without_tool_calls.additional_kwargs["_subagent_source"] = {
-                                            "tool_call_id": runtime.tool_call_id,
-                                                "subagent_type": subagent_type,
-                                            }
-                                            messages_without_tool_calls_for_history.append(msg_without_tool_calls)
+                                            prepared_msg = _prepare_subagent_ai_message(
+                                                msg,
+                                                parent_tool_call_id=runtime.tool_call_id,
+                                                subagent_type=subagent_type,
+                                            )
+                                            messages_with_tool_calls_for_display.append(prepared_msg)
+                                            messages_without_tool_calls_for_history.append(deepcopy(prepared_msg))
                                         elif isinstance(msg, ToolMessage):
                                             # ToolMessages contain results - stream them IMMEDIATELY, one at a time
                                             # Just like main agent: each ToolMessage is added to state as soon as the tool completes
@@ -1331,10 +1578,29 @@ def _create_task_tool(
                                                     except Exception:
                                                         pass
                                                     
-                                                    # Stream this single ToolMessage immediately
+                                                    # CRITICAL: Update tool call status to "completed" when ToolMessage arrives
+                                                    # Extract tool_call_id from the ToolMessage
+                                                    tool_call_id_from_msg = getattr(msg_copy, "tool_call_id", None)
+                                                    if tool_call_id_from_msg and runtime.tool_call_id in current_map_for_tool:
+                                                        # Find the tool call in the map and update its status
+                                                        tool_calls_list = current_map_for_tool[runtime.tool_call_id].get("tool_calls", [])
+                                                        for tc in tool_calls_list:
+                                                            if tc.get("id") == tool_call_id_from_msg:
+                                                                tc["status"] = "completed"
+                                                                # Also add the result content
+                                                                if hasattr(msg_copy, "content"):
+                                                                    tc["result"] = msg_copy.content
+                                                                elif hasattr(msg_copy, "text"):
+                                                                    tc["result"] = msg_copy.text
+                                                                break
+                                                    
+                                                    # Update accumulated map so subsequent streams have the updated status
+                                                    accumulated_tool_calls_map = current_map_for_tool.copy()
+                                                    
+                                                    # Stream this single ToolMessage immediately with updated map
                                                     stream_update_immediate = {
                                                         "messages": [msg_copy],  # Stream this ONE ToolMessage immediately
-                                                        "subagent_tool_calls_map": current_map_for_tool,
+                                                        "subagent_tool_calls_map": current_map_for_tool,  # Map with updated "completed" status
                                                     }
                                                     runtime.stream_writer(stream_update_immediate)
                                                     
@@ -1346,43 +1612,75 @@ def _create_task_tool(
                                                     import logging
                                                     logging.warning(f"Failed to stream ToolMessage immediately: {e}", exc_info=True)
                                     
-                                    # Get current subagent_tool_calls_map from accumulated map and state
-                                    current_map = accumulated_tool_calls_map.copy()
-                                    try:
-                                        if hasattr(runtime, "state") and runtime.state:
-                                            state_map = runtime.state.get("subagent_tool_calls_map", {})
-                                            if isinstance(state_map, dict):
-                                                # Merge state map into current_map
-                                                for key, value in state_map.items():
-                                                    if key not in current_map:
-                                                        current_map[key] = value
-                                    except Exception:
-                                        pass
+                                    # CRITICAL: Update status of existing tool calls when ToolMessages arrive in batch
+                                    # This ensures tool calls transition from "pending" to "completed"
+                                    has_tool_messages_in_batch = False
+                                    for msg in truly_new_messages:
+                                        if isinstance(msg, ToolMessage):
+                                            has_tool_messages_in_batch = True
+                                            tool_call_id_from_msg = getattr(msg, "tool_call_id", None)
+                                            if tool_call_id_from_msg and runtime.tool_call_id in current_map:
+                                                tool_calls_list = current_map[runtime.tool_call_id].get("tool_calls", [])
+                                                for tc in tool_calls_list:
+                                                    if tc.get("id") == tool_call_id_from_msg:
+                                                        tc["status"] = "completed"
+                                                        # Also add the result content
+                                                        if hasattr(msg, "content"):
+                                                            tc["result"] = msg.content
+                                                        elif hasattr(msg, "text"):
+                                                            tc["result"] = msg.text
+                                                        break
                                     
-                                    # Merge new tool calls into map
+                                    # Update accumulated map after status updates
+                                    if has_tool_messages_in_batch:
+                                        accumulated_tool_calls_map = current_map.copy()
+                                    
+                                    # CRITICAL: Add tool calls from AIMessages with "pending" status (if not already added)
+                                    # This ensures tool calls show as "spinning" when they first appear
                                     has_new_tool_calls = False
-                                    if subagent_tool_calls:
-                                        if runtime.tool_call_id not in current_map:
-                                            current_map[runtime.tool_call_id] = {
-                                                "tool_calls": [],
-                                                "subagent_type": subagent_type,
-                                            }
+                                    if subagent_tool_calls_from_ai:
                                         # Append new tool calls (avoid duplicates by ID)
                                         existing_ids = {tc.get("id") for tc in current_map[runtime.tool_call_id].get("tool_calls", [])}
-                                        new_tool_calls = [tc for tc in subagent_tool_calls if tc.get("id") not in existing_ids]
+                                        new_tool_calls = [tc for tc in subagent_tool_calls_from_ai if tc.get("id") not in existing_ids]
                                         if new_tool_calls:
                                             has_new_tool_calls = True
+                                            # Force all new tool calls to "pending" status (they come from AIMessages)
+                                            for tc in new_tool_calls:
+                                                tc["status"] = "pending"
+                                                # Remove result if present (shouldn't be, but just in case)
+                                                tc.pop("result", None)
                                             current_map[runtime.tool_call_id]["tool_calls"].extend(new_tool_calls)
                                             # Update accumulated map for final state update
                                             accumulated_tool_calls_map = current_map.copy()
                                     
-                                    # Use stream_writer to add messages WITH tool_calls/results to the messages state
-                                    # This makes sub-agent tool calls AND results appear in stream.messages in real-time
-                                    # AIMessages show tool calls as "pending", ToolMessages update them to "completed"
-                                    # CRITICAL: ToolMessages are already streamed individually above, so only stream AIMessages here
-                                    # This prevents duplicate ToolMessages and ensures real-time updates like the main agent
+                                    # CRITICAL FIX: Stream AIMessages immediately when they arrive, even if tool calls aren't extracted yet
+                                    # This ensures tool calls appear in the frontend as soon as they're available
+                                    # ToolMessages are already streamed individually above, so we stream AIMessages here
                                     ai_messages_only = [m for m in messages_with_tool_calls_for_display if isinstance(m, AIMessage)]
-                                    if (ai_messages_only and hasattr(runtime, "stream_writer") and runtime.stream_writer) and has_new_tool_calls:
+                                    has_ai_messages = len(ai_messages_only) > 0
+                                    
+                                    # CRITICAL: Check if AIMessage has tool_calls (even if not extracted yet)
+                                    # We need to stream immediately when AIMessage with tool_calls arrives, so frontend shows "spinning"
+                                    has_ai_with_tool_calls = False
+                                    for msg in truly_new_messages:
+                                        if isinstance(msg, AIMessage):
+                                            if (hasattr(msg, "tool_calls") and msg.tool_calls) or \
+                                               (hasattr(msg, "additional_kwargs") and msg.additional_kwargs and 
+                                                ("tool_calls" in msg.additional_kwargs or "_subagent_tool_calls" in msg.additional_kwargs)):
+                                                has_ai_with_tool_calls = True
+                                                break
+                                    
+                                    # CRITICAL: Stream if we have new tool calls OR status updates from ToolMessages
+                                    # We MUST stream when ToolMessages update status, even if no new tool calls were added
+                                    # This ensures tool calls transition from "pending" (spinning) to "completed" (green checkmark)
+                                    should_stream_ai = (
+                                        ai_messages_only and 
+                                        hasattr(runtime, "stream_writer") and 
+                                        runtime.stream_writer and
+                                        (has_new_tool_calls or has_ai_messages or has_ai_with_tool_calls or has_tool_messages_in_batch)
+                                    )
+                                    
+                                    if should_stream_ai:
                                         try:
                                             # Stream AIMessages with tool_calls (ToolMessages are already streamed individually above)
                                             # This matches main agent behavior: AIMessage appears first, then ToolMessages appear one by one

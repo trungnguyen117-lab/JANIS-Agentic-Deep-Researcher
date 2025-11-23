@@ -103,14 +103,14 @@ def create_deep_agent(
         ModelSelectorMiddleware(),  # Handle model selection from frontend (first message only)
         TokenUsageStateMiddleware(),  # Track token usage in LangGraph state
         FixedTodoListMiddleware(),  # Use fixed middleware that supports multiple updates per step
-        FilesystemMiddleware(backend=backend),
+        FilesystemMiddleware(backend=backend, system_prompt=""),
         SubAgentMiddleware(
             default_model=model,
             default_tools=tools,
             subagents=subagents if subagents is not None else [],
             default_middleware=[
                 FixedTodoListMiddleware(),  # Use fixed middleware that supports multiple updates per step
-                FilesystemMiddleware(backend=backend),
+                FilesystemMiddleware(backend=backend, system_prompt=""),
                 SummarizationMiddleware(
                     model=model,
                     max_tokens_before_summary=170000,
@@ -120,6 +120,7 @@ def create_deep_agent(
                 PatchToolCallsMiddleware(),
             ],
             default_interrupt_on=interrupt_on,
+            system_prompt="",
             general_purpose_agent=True,
         ),
         SummarizationMiddleware(

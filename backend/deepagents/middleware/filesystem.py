@@ -440,6 +440,334 @@ def _grep_tool_generator(
     return grep
 
 
+def _validate_json_tool_generator(
+    backend: BackendProtocol | Callable[[ToolRuntime], BackendProtocol],
+    custom_description: str | None = None,
+) -> BaseTool:
+    """Generate the validate_json tool.
+    
+    Args:
+        backend: Backend to use for file storage, or a factory function that takes runtime and returns a backend.
+        custom_description: Optional custom description for the tool.
+    
+    Returns:
+        Configured validate_json tool that validates JSON from files or strings using the backend.
+    """
+    from typing import Optional
+    
+    tool_description = custom_description or """Validate JSON syntax and structure.
+    
+    Use this tool to verify that a JSON string or file is valid.
+    You can provide either:
+    - file_path: Path to a JSON file to read and validate (e.g., "/plan_outline.json")
+    - json_string: Direct JSON string to validate
+    
+    If both are provided, file_path takes precedence (the file will be read and validated).
+    """
+    
+    @tool(description=tool_description)
+    def validate_json(
+        runtime: ToolRuntime[None, FilesystemState],
+        json_string: Optional[str] = None,
+        file_path: Optional[str] = None,
+    ) -> str:
+        """Validate JSON syntax and structure."""
+        import json
+        
+        result_parts = []
+        json_content = ""
+        
+        # Determine the source of JSON content
+        if file_path:
+            # Read from file using the backend
+            try:
+                resolved_backend = _get_backend(backend, runtime)
+                validated_path = _validate_path(file_path)
+                formatted_content = resolved_backend.read(validated_path, offset=0, limit=100000)  # Read full file
+                
+                # Strip line numbers from formatted content (format: "     1\t{...}")
+                # The filesystem backend returns content with line numbers like: "     1\t{...}"
+                # Line numbers are right-aligned in 6-char field, followed by tab
+                # Pattern: optional spaces, then digits (possibly with decimal like "5.1"), then tab
+                import re
+                lines = formatted_content.split('\n')
+                json_lines = []
+                # Regex to match line number prefix: optional spaces, then number (int or decimal), then tab
+                line_number_pattern = re.compile(r'^\s*\d+(\.\d+)?\t')
+                for line in lines:
+                    # Check if line starts with line number format
+                    if line_number_pattern.match(line):
+                        # Remove the line number prefix (everything up to and including the tab)
+                        content = line_number_pattern.sub('', line)
+                        json_lines.append(content)
+                    else:
+                        # No line number prefix, use line as-is
+                        json_lines.append(line)
+                
+                json_content = '\n'.join(json_lines)
+                result_parts.append(f"📄 Reading JSON from file: {file_path}")
+                result_parts.append("")
+            except Exception as e:
+                return f"❌ ERROR: Could not read file {file_path}: {str(e)}"
+        elif json_string:
+            # Use provided JSON string
+            json_content = json_string
+            result_parts.append("📄 Validating provided JSON string")
+            result_parts.append("")
+        else:
+            return "❌ ERROR: Either 'json_string' or 'file_path' must be provided."
+        
+        # Validate the JSON content
+        if not json_content or not json_content.strip():
+            return "❌ ERROR: JSON content is empty or contains only whitespace. Please provide valid JSON."
+        
+        try:
+            # Parse the JSON to check syntax
+            parsed = json.loads(json_content)
+            
+            # Basic structure validation
+            validation_checks = []
+            
+            # Check if it's an object (dict)
+            if isinstance(parsed, dict):
+                validation_checks.append("✓ Valid JSON object (dictionary)")
+                
+                # Check for required fields if it's an outline
+                if "sections" in parsed:
+                    validation_checks.append("✓ Contains 'sections' field")
+                    sections = parsed.get("sections", [])
+                    if isinstance(sections, list):
+                        validation_checks.append(f"✓ 'sections' is an array with {len(sections)} items")
+                        
+                        # Validate each section
+                        for i, section in enumerate(sections):
+                            if not isinstance(section, dict):
+                                validation_checks.append(f"⚠ Section {i+1} is not an object")
+                            else:
+                                required_fields = ["id", "title", "description", "order"]
+                                missing_fields = [field for field in required_fields if field not in section]
+                                if missing_fields:
+                                    validation_checks.append(f"⚠ Section {i+1} missing fields: {', '.join(missing_fields)}")
+                                else:
+                                    validation_checks.append(f"✓ Section {i+1} has all required fields")
+                                
+                                # Validate subsections if present
+                                if "subsections" in section:
+                                    if not isinstance(section["subsections"], list):
+                                        validation_checks.append(f"⚠ Section {i+1} 'subsections' is not an array")
+                                    else:
+                                        validation_checks.append(f"✓ Section {i+1} has {len(section['subsections'])} subsections")
+                                        for j, subsection in enumerate(section["subsections"]):
+                                            if not isinstance(subsection, dict):
+                                                validation_checks.append(f"⚠ Section {i+1}, Subsection {j+1} is not an object")
+                                            else:
+                                                subsection_required_fields = ["id", "title", "description", "order"]
+                                                subsection_missing_fields = [field for field in subsection_required_fields if field not in subsection]
+                                                if subsection_missing_fields:
+                                                    validation_checks.append(f"⚠ Section {i+1}, Subsection {j+1} missing fields: {', '.join(subsection_missing_fields)}")
+                                                else:
+                                                    validation_checks.append(f"✓ Section {i+1}, Subsection {j+1} has all required fields")
+                                else:
+                                    validation_checks.append(f"ℹ Section {i+1} has no 'subsections' array (recommended for better structure)")
+                    else:
+                        validation_checks.append("⚠ 'sections' is not an array")
+                else:
+                    validation_checks.append("ℹ No 'sections' field found (may not be an outline)")
+            elif isinstance(parsed, list):
+                validation_checks.append("✓ Valid JSON array")
+            else:
+                validation_checks.append("✓ Valid JSON (primitive value)")
+            
+            # Success message
+            result_parts.append("✅ JSON is VALID")
+            result_parts.append("")
+            result_parts.append("Validation details:")
+            result_parts.extend(validation_checks)
+            
+            return "\n".join(result_parts)
+            
+        except json.JSONDecodeError as e:
+            # Detailed error information
+            error_msg = f"❌ JSON is INVALID"
+            result_parts.append(error_msg)
+            result_parts.append("")
+            result_parts.append(f"Error: {e.msg}")
+            result_parts.append(f"Location: Line {e.lineno}, Column {e.colno}")
+            
+            # Show the problematic line if possible
+            if e.lineno and json_content:
+                lines = json_content.split('\n')
+                if e.lineno <= len(lines):
+                    problem_line = lines[e.lineno - 1]
+                    result_parts.append(f"Problem line: {problem_line}")
+                    # Show pointer to the column
+                    if e.colno:
+                        pointer = " " * (e.colno - 1) + "^"
+                        result_parts.append(f"            {pointer}")
+            
+            result_parts.append("")
+            result_parts.append("Common JSON errors to check:")
+            result_parts.append("  - Missing or extra commas")
+            result_parts.append("  - Unclosed braces {} or brackets []")
+            result_parts.append("  - Unescaped quotes in strings")
+            result_parts.append("  - Trailing commas (not allowed in JSON)")
+            result_parts.append("  - Single quotes instead of double quotes")
+            result_parts.append("  - Unquoted property names")
+            
+            return "\n".join(result_parts)
+        
+        except Exception as e:
+            return f"❌ Unexpected error during validation: {str(e)}"
+    
+    return validate_json
+
+
+def _aggregate_document_tool_generator(
+    backend: BackendProtocol | Callable[[ToolRuntime], BackendProtocol],
+    custom_description: str | None = None,
+) -> BaseTool:
+    """Generate the aggregate_document tool that uses the filesystem backend.
+    
+    Args:
+        backend: Backend to use for file storage, or a factory function that takes runtime and returns a backend.
+        custom_description: Optional custom description for the tool.
+    
+    Returns:
+        Configured aggregate_document tool that reads and writes files using the backend.
+    """
+    tool_description = custom_description or """Concatenate multiple section files (already written) into a final document.
+
+    Args:
+        sections: List of objects describing each section to aggregate. Every entry must include:
+            - section_number (int): order in the final document
+            - file (str): absolute path to the section file (e.g., "/section_section_1.md")
+        Optional keys:
+            - title (str): human friendly heading to insert before the section
+        output_file: Path where the final document should be written (e.g., "/final_research_document.md").
+        generate_table_of_contents: Whether to prepend a basic table of contents (default: True).
+
+    Returns:
+        bool: True if aggregation succeeded. Raises ValueError on failure.
+    
+    CRITICAL: This tool uses the LangGraph filesystem backend. All file paths must be absolute paths starting with "/".
+    The tool will read section files from the backend and write the aggregated document to the backend.
+    """
+    
+    @tool(description=tool_description)
+    def aggregate_document(
+        sections: list[dict],
+        output_file: str,
+        runtime: ToolRuntime[None, FilesystemState],
+        generate_table_of_contents: bool = True,
+    ) -> str | Command:
+        """Concatenate multiple section files into a final document using the filesystem backend."""
+        from typing import Any
+        
+        if not sections:
+            raise ValueError("No sections provided to aggregate_document.")
+        
+        resolved_backend = _get_backend(backend, runtime)
+        
+        normalized_sections: list[dict[str, Any]] = []
+        for idx, entry in enumerate(sections):
+            if not isinstance(entry, dict):
+                raise ValueError(f"Section #{idx} is not an object: {entry!r}")
+            if "section_number" not in entry or "file" not in entry:
+                raise ValueError(
+                    f"Section #{idx} missing required keys. "
+                    "Each section must include 'section_number' and 'file'."
+                )
+            try:
+                number = int(entry["section_number"])
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"Section #{idx} has non-integer section_number: {entry['section_number']!r}"
+                ) from None
+            file_path = _validate_path(entry["file"])
+            title = entry.get("title") or f"Section {number}"
+            normalized_sections.append(
+                {
+                    "section_number": number,
+                    "file": file_path,
+                    "title": title,
+                }
+            )
+        
+        normalized_sections.sort(key=lambda s: s["section_number"])
+        
+        aggregated_chunks: list[str] = []
+        toc_lines: list[str] = []
+        
+        for section in normalized_sections:
+            file_path: str = section["file"]
+            # Try to read the file using the backend
+            try:
+                # Read full file content (use large limit to get entire file)
+                content = resolved_backend.read(file_path, offset=0, limit=1000000)
+                
+                # Strip line numbers from content (backend formats with line numbers)
+                import re
+                lines = content.split('\n')
+                content_lines = []
+                line_number_pattern = re.compile(r'^\s*\d+(\.\d+)?\t')
+                for line in lines:
+                    if line_number_pattern.match(line):
+                        content = line_number_pattern.sub('', line)
+                        content_lines.append(content)
+                    else:
+                        content_lines.append(line)
+                
+                content = '\n'.join(content_lines).strip()
+                
+            except Exception as e:
+                raise ValueError(f"Section file not found or cannot be read: {file_path}. Error: {str(e)}")
+            
+            title = section["title"]
+            aggregated_chunks.append(f"## {title}\n\n{content}\n\n")
+            
+            if generate_table_of_contents:
+                # Simple slugify for anchor
+                anchor = "".join(ch.lower() if ch.isalnum() else "-" for ch in title)
+                while "--" in anchor:
+                    anchor = anchor.replace("--", "-")
+                anchor = anchor.strip("-") or f"section-{section['section_number']}"
+                toc_lines.append(f"{section['section_number']}. [{title}](#{anchor})")
+        
+        final_parts: list[str] = []
+        if generate_table_of_contents and toc_lines:
+            final_parts.append("# Table of Contents\n")
+            final_parts.extend(line + "\n" for line in toc_lines)
+            final_parts.append("\n")
+        
+        final_parts.extend(aggregated_chunks)
+        final_content = "".join(final_parts)
+        
+        # Write output file using the backend
+        output_path = _validate_path(output_file)
+        write_result = resolved_backend.write(output_path, final_content)
+        
+        if write_result.error:
+            raise ValueError(f"Failed to write output file {output_path}: {write_result.error}")
+        
+        # Return Command with state update if backend provides it
+        if write_result.files_update is not None:
+            return Command(
+                update={
+                    "files": write_result.files_update,
+                    "messages": [
+                        ToolMessage(
+                            content=f"Successfully aggregated {len(sections)} sections into {output_path}",
+                            tool_call_id=runtime.tool_call_id,
+                        )
+                    ],
+                }
+            )
+        
+        return f"Successfully aggregated {len(sections)} sections into {output_path}"
+    
+    return aggregate_document
+
+
 TOOL_GENERATORS = {
     "ls": _ls_tool_generator,
     "read_file": _read_file_tool_generator,
@@ -447,6 +775,8 @@ TOOL_GENERATORS = {
     "edit_file": _edit_file_tool_generator,
     "glob": _glob_tool_generator,
     "grep": _grep_tool_generator,
+    "validate_json": _validate_json_tool_generator,
+    "aggregate_document": _aggregate_document_tool_generator,
 }
 
 

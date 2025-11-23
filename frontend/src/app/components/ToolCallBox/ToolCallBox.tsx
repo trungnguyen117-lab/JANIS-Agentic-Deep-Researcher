@@ -20,7 +20,7 @@ interface ToolCallBoxProps {
 export const ToolCallBox = React.memo<ToolCallBoxProps>(({ toolCall }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const { name, args, result, status } = useMemo(() => {
+  const { name, args, result, status, uniqueId, source } = useMemo(() => {
     const toolName = toolCall.name || "Unknown Tool";
     const toolArgs = toolCall.args || "{}";
     let parsedArgs = {};
@@ -32,12 +32,28 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(({ toolCall }) => {
     }
     const toolResult = toolCall.result || null;
     const toolStatus = toolCall.status || "completed";
+    const uniqueId = toolCall._uniqueId || toolCall.id || "unknown";
+    const source = toolCall._source || "unknown";
+
+    // Debug logging to verify uniqueId is set
+    if (!toolCall._uniqueId) {
+      console.warn("[ToolCallBox] Missing _uniqueId for tool call:", {
+        id: toolCall.id,
+        name: toolName,
+        hasUniqueId: !!toolCall._uniqueId,
+        hasSource: !!toolCall._source,
+        hasMessageId: !!toolCall._messageId,
+        toolCall: toolCall,
+      });
+    }
 
     return {
       name: toolName,
       args: parsedArgs,
       result: toolResult,
       status: toolStatus,
+      uniqueId,
+      source,
     };
   }, [toolCall]);
 
@@ -77,6 +93,15 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(({ toolCall }) => {
           )}
           {statusIcon}
           <span className={styles.toolName}>{name}</span>
+          <span 
+            className={styles.uniqueId} 
+            title={`Unique ID: ${uniqueId}\nSource: ${source}\nID: ${toolCall.id}\nMessage ID: ${toolCall._messageId || 'N/A'}\nParent: ${toolCall.parentToolCallId || 'N/A'}`}
+          >
+            {uniqueId && uniqueId !== 'unknown' 
+              ? `[${uniqueId.includes('-') ? uniqueId.split('-')[0] : uniqueId.substring(0, 8)}]`
+              : `[${toolCall.id?.substring(0, 8) || 'no-id'}]`
+            }
+          </span>
         </div>
       </Button>
 
