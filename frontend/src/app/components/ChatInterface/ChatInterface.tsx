@@ -8,9 +8,10 @@ import React, {
   useEffect,
   FormEvent,
 } from "react";
+import NextImage from "next/image";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Send, Bot, LoaderCircle, SquarePen, History, X } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Send, Bot, LoaderCircle, SquarePen, History, X, Paperclip, Square } from "lucide-react";
 import { ChatMessage } from "../ChatMessage/ChatMessage";
 import { ThreadHistorySidebar } from "../ThreadHistorySidebar/ThreadHistorySidebar";
 import { ModelSelector } from "../ModelSelector/ModelSelector";
@@ -58,6 +59,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     const [isThreadHistoryOpen, setIsThreadHistoryOpen] = useState(false);
     const [selectedModel, setSelectedModel] = useState<string>("gpt-4o");
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const { messages, isLoading, sendMessage, stopStream, subagentToolCallsMap } = useChat(
       threadId,
@@ -622,10 +624,16 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       <div className={styles.container}>
         <div className={styles.header}>
           <div className={styles.headerLeft}>
-            <Bot className={styles.logo} />
-            <h1 className={styles.title}>Deep Agents</h1>
+            <NextImage src="/hello.png" alt="Janis Logo" width={24} height={24} className={styles.logo} />
+            <h1 className={styles.title}>Janis</h1>
           </div>
           <div className={styles.headerRight}>
+            <ModelSelector
+              tokenUsage={tokenUsage}
+              availableModels={availableModels}
+              onModelChange={setSelectedModel}
+              disabled={messages.length > 0} // Disable after first message
+            />
             <Button
               variant="ghost"
               size="icon"
@@ -649,7 +657,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
           <div className={styles.messagesContainer}>
             {!hasMessages && !isLoading && !isLoadingThreadState && (
               <div className={styles.emptyState}>
-                <Bot size={48} className={styles.emptyIcon} />
+                <NextImage src="/hello.png" alt="Janis Logo" width={64} height={64} className={styles.emptyIcon} />
                 <h2>Start a conversation or select a thread from history</h2>
               </div>
             )}
@@ -700,26 +708,54 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
         </div>
         <form onSubmit={handleSubmit} className={styles.inputForm}>
           <div className={styles.inputRow}>
-            <ModelSelector
-              tokenUsage={tokenUsage}
-              availableModels={availableModels}
-              onModelChange={setSelectedModel}
-              disabled={messages.length > 0} // Disable after first message
+
+            <input
+              type="file"
+              id="file-upload"
+              className="hidden"
+              onChange={(e) => {
+                // Placeholder for file upload logic
+                console.log("File selected:", e.target.files?.[0]);
+              }}
             />
-            <Input
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={styles.attachButton}
+              onClick={() => document.getElementById("file-upload")?.click()}
+              disabled={isLoading}
+            >
+              <Paperclip size={20} />
+            </Button>
+            <Textarea
+              ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                // Auto-resize
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`;
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e as any);
+                }
+              }}
               placeholder="Type your message..."
               disabled={isLoading}
               className={styles.input}
+              rows={1}
             />
             {isLoading ? (
               <Button
                 type="button"
                 onClick={stopStream}
                 className={styles.stopButton}
+                title="Stop generating"
               >
-                Stop
+                <Square size={16} fill="currentColor" />
               </Button>
             ) : (
               <Button

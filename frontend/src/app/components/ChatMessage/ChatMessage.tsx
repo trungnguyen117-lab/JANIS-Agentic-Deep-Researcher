@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import NextImage from "next/image";
 import { User, Bot, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SubAgentIndicator } from "../SubAgentIndicator/SubAgentIndicator";
@@ -22,6 +23,53 @@ interface ChatMessageProps {
   sendMessage?: (message: string) => void;
   hasOutlineFile?: boolean; // Whether plan_outline.json exists
 }
+
+import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+
+interface ToolCallsGroupProps {
+  toolCalls: ToolCall[];
+}
+
+const ToolCallsGroup: React.FC<ToolCallsGroupProps> = ({ toolCalls }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const isAllCompleted = toolCalls.every((tc) => tc.status === "completed" || tc.status === "error");
+  const hasError = toolCalls.some((tc) => tc.status === "error");
+
+  return (
+    <div className={styles.toolCallsGroupContainer}>
+      <button 
+        className={styles.toolCallsGroupHeader} 
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div className={styles.toolCallsGroupStatus}>
+          {isAllCompleted ? (
+            hasError ? (
+              <div className={styles.statusIconError} />
+            ) : (
+              <div className={styles.statusIconSuccess} />
+            )
+          ) : (
+            <Loader2 className={styles.statusIconLoading} size={14} />
+          )}
+          <span className={styles.statusText}>
+            {isAllCompleted 
+              ? `Finished ${toolCalls.length} tool${toolCalls.length > 1 ? 's' : ''}` 
+              : `Processing ${toolCalls.length} tool${toolCalls.length > 1 ? 's' : ''}...`}
+          </span>
+        </div>
+        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+      </button>
+      
+      {isOpen && (
+        <div className={styles.toolCallsList}>
+          {toolCalls.map((toolCall: ToolCall) => (
+            <ToolCallBox key={toolCall.id} toolCall={toolCall} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const ChatMessage = React.memo<ChatMessageProps>(
   ({ message, toolCalls, subagentToolCalls = [], showAvatar, onSelectSubAgent, selectedSubAgent, onApprove, sendMessage, hasOutlineFile = false }) => {
@@ -175,9 +223,9 @@ export const ChatMessage = React.memo<ChatMessageProps>(
         >
           {showAvatar &&
             (isUser ? (
-              <User className={styles.avatarIcon} />
+              <User className={styles.avatarIcon} size={10} />
             ) : (
-              <Bot className={styles.avatarIcon} />
+              <NextImage src="/hello.png" alt="AI Avatar" width={24} height={24} className={styles.avatarIcon} />
             ))}
         </div>
         <div className={styles.content}>
@@ -206,11 +254,8 @@ export const ChatMessage = React.memo<ChatMessageProps>(
           )}
           {/* Show orchestrator tool calls (non-task tool calls) in the main chat */}
           {!isUser && orchestratorToolCalls.length > 0 && (
-            <div className={styles.toolCalls}>
-              <h4 className={styles.toolCallsHeader}>Tool Calls ({orchestratorToolCalls.length})</h4>
-              {orchestratorToolCalls.map((toolCall: ToolCall) => (
-                <ToolCallBox key={toolCall.id} toolCall={toolCall} />
-              ))}
+            <div className={styles.toolCallsGroup}>
+              <ToolCallsGroup toolCalls={orchestratorToolCalls} />
             </div>
           )}
           {/* Show sub-agent indicators (task tool calls delegate to sub-agents) */}

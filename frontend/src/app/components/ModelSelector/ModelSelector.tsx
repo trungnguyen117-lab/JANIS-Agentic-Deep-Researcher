@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
-import { Settings } from "lucide-react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { Settings, ChevronDown, Coins } from "lucide-react";
 import styles from "./ModelSelector.module.scss";
 
 const MODEL_STORAGE_KEY = "selected_model";
@@ -28,7 +28,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   const [selectedModel, setSelectedModel] = useState<string>("gpt-4o");
   const [isOpen, setIsOpen] = useState(false);
   const [models, setModels] = useState<ModelInfo[]>([]);
-  const [isLoadingModels, setIsLoadingModels] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Load models from models.json file
   useEffect(() => {
@@ -53,7 +53,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         }
         
         setModels(modelsList);
-        setIsLoadingModels(false);
       } catch (error) {
         console.error("Failed to load models.json:", error);
         // Fallback to availableModels from props if fetch fails
@@ -63,7 +62,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
           // Last resort: use default
           setModels([{ name: "gpt-4o", input_price_per_million: 1.5, output_price_per_million: 6.0 }]);
         }
-        setIsLoadingModels(false);
       }
     };
 
@@ -89,6 +87,23 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       setSelectedModel(modelNames[0]);
     }
   }, [modelNames]);
+
+  // Click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
 
   const handleModelChange = async (value: string) => {
     setSelectedModel(value);
@@ -125,50 +140,65 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   };
 
   return (
-    <div className={styles.container}>
-      <div className={styles.label}>
-        <Settings size={16} />
-        <span>Model</span>
-      </div>
-      <select
-        value={selectedModel}
-        onChange={(e) => handleModelChange(e.target.value)}
-        className={styles.select}
-        disabled={disabled}
-        title={disabled ? "Model can only be changed before sending the first message" : "Select model"}
+    <div className={styles.container} ref={containerRef}>
+      <button 
+        className={styles.triggerButton}
+        onClick={() => setIsOpen(!isOpen)}
+        title="Model settings & usage"
       >
-        {modelNames.map((model) => (
-          <option key={model} value={model}>
-            {model}
-          </option>
-        ))}
-      </select>
-      {tokenUsage !== undefined && (
-        <div className={styles.tokenUsage}>
-          <span className={styles.tokenLabel}>Tokens:</span>
-          <span className={styles.tokenCount}>
-            <span
-              className={styles.inputTokenCount}
-              title={`Input: ${formatTokenCount(tokenUsage.input)}\n  = Prompt: ${formatTokenCount(tokenUsage.prompt ?? 0)} + Cache: ${formatTokenCount(tokenUsage.cache ?? 0)}`}
+        <Settings size={14} />
+        <span className={styles.modelName}>{selectedModel}</span>
+        <ChevronDown size={14} />
+      </button>
+
+      {isOpen && (
+        <div className={styles.popoverContent}>
+          <div className={styles.section}>
+            <div className={styles.sectionLabel}>
+              <Settings size={14} />
+              <span>Select Model</span>
+            </div>
+            <select
+              value={selectedModel}
+              onChange={(e) => handleModelChange(e.target.value)}
+              className={styles.select}
+              disabled={disabled}
+              title={disabled ? "Model can only be changed before sending the first message" : "Select model"}
             >
-              {formatTokenCount(tokenUsage.input)} in
-              {tokenUsage.prompt !== undefined && tokenUsage.cache !== undefined && (tokenUsage.prompt > 0 || tokenUsage.cache > 0) && (
-                <span style={{ fontSize: '0.85em', opacity: 0.7 }}>
-                  {" "}({formatTokenCount(tokenUsage.prompt)} prompt + {formatTokenCount(tokenUsage.cache)} cache)
-                </span>
-              )}
-            </span>
-            {" / "}
-            <span 
-              className={styles.outputTokenCount}
-              title={`Output: ${formatTokenCount(tokenUsage.output)}\nCompletion: ${formatTokenCount(tokenUsage.completion)}\nReasoning: ${formatTokenCount(tokenUsage.reasoning)}`}
-            >
-              {formatTokenCount(tokenUsage.output)} out
-            </span>
-          </span>
-          <span className={styles.cost}>
-            • Cost: {formatCost(tokenUsage.cost ?? 0)}
-          </span>
+              {modelNames.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {tokenUsage !== undefined && (
+            <div className={styles.section}>
+              <div className={styles.sectionLabel}>
+                <Coins size={14} />
+                <span>Token Usage</span>
+              </div>
+              <div className={styles.tokenUsage}>
+                <div className={styles.tokenRow}>
+                  <span>Input Tokens:</span>
+                  <span className={styles.tokenValue}>{formatTokenCount(tokenUsage.input)}</span>
+                </div>
+                <div className={styles.tokenRow}>
+                  <span>Output Tokens:</span>
+                  <span className={styles.tokenValue}>{formatTokenCount(tokenUsage.output)}</span>
+                </div>
+                <div className={styles.tokenRow}>
+                  <span>Total Tokens:</span>
+                  <span className={styles.tokenValue}>{formatTokenCount(tokenUsage.total)}</span>
+                </div>
+                <div className={styles.costRow}>
+                  <span>Estimated Cost:</span>
+                  <span>{formatCost(tokenUsage.cost ?? 0)}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

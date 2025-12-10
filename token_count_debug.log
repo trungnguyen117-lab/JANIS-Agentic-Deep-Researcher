@@ -1,0 +1,835 @@
+gpt-4o-mini,6354447,0,tool_call,write_file
+gpt-4o-mini,4945,0,tool_call,write_file
+gpt-4o-mini,10613,0,tool_call,write_todos
+gpt-4o-mini,16864,0,tool_call,task
+gpt-4o-mini,1884,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,51136,0,tool_call,write_file
+gpt-4o-mini,82600,363,completion,N/A
+gpt-4o-mini,24893,0,tool_call,write_todos
+gpt-4o-mini,32681,0,tool_call,task
+gpt-4o-mini,12663,0,tool_call,ls
+gpt-4o-mini,25717,0,tool_call,read_file
+gpt-4o-mini,47693,3679,tool_call,validate_json
+gpt-4o-mini,66005,0,tool_call,write_file
+gpt-4o-mini,96920,0,tool_call,validate_json
+gpt-4o-mini,126446,3675,completion,N/A
+gpt-4o-mini,63178,3377,completion,N/A
+gpt-4o-mini,84080,0,tool_call,write_todos
+gpt-4o-mini,100292,0,tool_call,glob
+gpt-4o-mini,130636,0,tool_call,task
+gpt-4o-mini,5720,0,tool_call,write_file
+gpt-4o-mini,21763,0,tool_call,write_file
+gpt-4o-mini,49980,0,tool_call,write_file
+gpt-4o-mini,90842,0,tool_call,write_file
+gpt-4o-mini,144945,0,tool_call,write_file
+gpt-4o-mini,211801,0,tool_call,write_file
+gpt-4o-mini,290712,1023,completion,N/A
+gpt-4o-mini,158686,0,tool_call,glob
+gpt-4o-mini,176623,0,tool_call,glob
+gpt-4o-mini,194917,0,tool_call,glob
+gpt-4o-mini,213568,0,tool_call,glob
+gpt-4o-mini,232576,0,tool_call,glob
+gpt-4o-mini,251941,0,tool_call,glob
+gpt-4o-mini,271663,0,tool_call,glob
+gpt-4o-mini,291742,0,tool_call,glob
+gpt-4o-mini,312178,0,tool_call,glob
+gpt-4o-mini,332971,0,tool_call,glob
+gpt-4o-mini,354121,0,tool_call,glob
+gpt-4o-mini,375628,0,tool_call,glob
+gpt-4o-mini,397492,0,tool_call,glob
+gpt-4o-mini,419713,0,tool_call,glob
+gpt-4o-mini,442291,0,tool_call,glob
+gpt-4o-mini,465226,0,tool_call,glob
+gpt-4o-mini,488518,0,tool_call,glob
+gpt-4o-mini,512167,0,tool_call,glob
+gpt-4o-mini,536173,0,tool_call,glob
+gpt-4o-mini,560536,0,tool_call,glob
+gpt-4o-mini,585256,0,tool_call,glob
+gpt-4o-mini,610333,0,tool_call,glob
+gpt-4o-mini,635767,0,tool_call,glob
+gpt-4o-mini,661558,0,tool_call,glob
+gpt-4o-mini,687706,0,tool_call,glob
+gpt-4o-mini,714211,0,tool_call,glob
+gpt-4o-mini,741073,0,tool_call,glob
+gpt-4o-mini,768292,0,tool_call,glob
+gpt-4o-mini,795868,0,tool_call,glob
+gpt-4o-mini,823801,0,tool_call,glob
+gpt-4o-mini,852091,0,tool_call,glob
+gpt-4o-mini,880738,0,tool_call,glob
+gpt-4o-mini,909742,0,tool_call,glob
+gpt-4o-mini,939103,0,tool_call,glob
+gpt-4o-mini,968821,0,tool_call,glob
+gpt-4o-mini,998896,0,tool_call,glob
+gpt-4o-mini,1029328,0,tool_call,glob
+gpt-4o-mini,1060117,0,tool_call,glob
+gpt-4o-mini,1091263,0,tool_call,glob
+gpt-4o-mini,1122766,0,tool_call,glob
+gpt-4o-mini,1154626,0,tool_call,glob
+gpt-4o-mini,1186843,0,tool_call,glob
+gpt-4o-mini,1219417,0,tool_call,glob
+gpt-4o-mini,4941,0,tool_call,write_file
+gpt-4o-mini,1252348,0,tool_call,glob
+gpt-4o-mini,10204,0,tool_call,write_todos
+gpt-4o-mini,1285636,0,tool_call,glob
+gpt-4o-mini,15944,0,tool_call,task
+gpt-4o-mini,1879,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,1319281,0,tool_call,glob
+gpt-4o-mini,4540,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,35993,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,67790,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,87452,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,134651,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,160847,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,223599,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,256538,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,334932,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,374705,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,415265,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,514748,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,561932,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,676487,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,730504,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,860507,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,1071708,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,1386275,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,1727532,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,2095787,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,2490890,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,2912841,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,3361640,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,3837287,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,4339782,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,4869125,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,5425316,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,6008355,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,6618242,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,7254977,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,7918560,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,8608991,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,9326270,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,10070397,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,4941,0,tool_call,write_file
+gpt-4o-mini,10204,0,tool_call,write_todos
+gpt-4o-mini,15939,0,tool_call,task
+gpt-4o-mini,1888,0,tool_call,arxiv_search
+gpt-4o-mini,21926,0,tool_call,write_file
+gpt-4o-mini,38114,312,completion,N/A
+gpt-4o-mini,23323,0,tool_call,write_todos
+gpt-4o-mini,30266,0,tool_call,task
+gpt-4o-mini,12653,0,tool_call,ls
+gpt-4o-mini,25696,0,tool_call,read_file
+gpt-4o-mini,46692,1523,tool_call,validate_json
+gpt-4o-mini,52875,0,tool_call,write_file
+gpt-4o-mini,78164,0,tool_call,validate_json
+gpt-4o-mini,102166,1534,completion,N/A
+gpt-4o-mini,46965,1426,completion,N/A
+gpt-4o-mini,55859,0,tool_call,write_todos
+gpt-4o-mini,66892,0,tool_call,glob
+gpt-4o-mini,87515,0,tool_call,read_file
+gpt-4o-mini,118130,0,tool_call,write_todos
+gpt-4o-mini,137675,0,tool_call,task
+gpt-4o-mini,5633,0,tool_call,write_file
+gpt-4o-mini,14261,350,completion,N/A
+gpt-4o-mini,157296,0,tool_call,task
+gpt-4o-mini,5638,0,tool_call,write_file
+gpt-4o-mini,11693,0,tool_call,arxiv_search
+gpt-4o-mini,18175,0,tool_call,arxiv_search
+gpt-4o-mini,24994,0,tool_call,arxiv_search
+gpt-4o-mini,32234,0,tool_call,arxiv_search
+gpt-4o-mini,39955,0,tool_call,arxiv_search
+gpt-4o-mini,47985,0,tool_call,arxiv_search
+gpt-4o-mini,56405,0,tool_call,arxiv_search
+gpt-4o-mini,105775,0,tool_call,think_tool
+gpt-4o-mini,123068,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,188611,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,260087,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,345912,4939,completion,N/A
+gpt-4o-mini,238601,0,tool_call,task
+gpt-4o-mini,5655,0,tool_call,write_file
+gpt-4o-mini,18644,425,completion,N/A
+gpt-4o-mini,266624,0,tool_call,task
+gpt-4o-mini,5642,0,tool_call,write_file
+gpt-4o-mini,14285,0,tool_call,write_file
+gpt-4o-mini,28736,0,tool_call,edit_file
+gpt-4o-mini,59701,0,tool_call,read_file
+gpt-4o-mini,91662,0,tool_call,write_file
+gpt-4o-mini,126242,0,tool_call,write_file
+gpt-4o-mini,166320,290,completion,N/A
+gpt-4o-mini,293817,0,tool_call,task
+gpt-4o-mini,5651,0,tool_call,write_file
+gpt-4o-mini,15159,503,completion,N/A
+gpt-4o-mini,325676,0,tool_call,task
+gpt-4o-mini,5647,0,tool_call,write_file
+gpt-4o-mini,13304,162,completion,N/A
+gpt-4o-mini,353110,0,tool_call,glob
+gpt-4o-mini,378529,0,tool_call,aggregate_document
+gpt-4o-mini,408813,0,tool_call,write_todos
+gpt-4o-mini,435477,177,completion,N/A
+gpt-4o-mini,4945,0,tool_call,write_file
+gpt-4o-mini,10216,0,tool_call,write_todos
+gpt-4o-mini,16069,0,tool_call,task
+gpt-4o-mini,1883,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,51133,0,tool_call,write_file
+gpt-4o-mini,81907,111,completion,N/A
+gpt-4o-mini,22676,0,tool_call,write_todos
+gpt-4o-mini,29691,157,completion,N/A
+gpt-4o-mini,4952,0,tool_call,write_file
+gpt-4o-mini,10237,0,tool_call,write_todos
+gpt-4o-mini,16047,0,tool_call,task
+gpt-4o-mini,1899,0,tool_call,arxiv_search
+gpt-4o-mini,20604,0,tool_call,write_file
+gpt-4o-mini,35687,112,completion,N/A
+gpt-4o-mini,22697,0,tool_call,write_todos
+gpt-4o-mini,29699,0,tool_call,task
+gpt-4o-mini,12658,0,tool_call,read_file
+gpt-4o-mini,30323,0,tool_call,validate_json
+gpt-4o-mini,60260,0,tool_call,write_file
+gpt-4o-mini,100008,1378,completion,N/A
+gpt-4o-mini,45409,1282,completion,N/A
+gpt-4o-mini,53457,0,tool_call,read_file
+gpt-4o-mini,99499,0,tool_call,write_todos
+gpt-4o-mini,115931,0,tool_call,glob
+gpt-4o-mini,146574,0,tool_call,write_todos
+gpt-4o-mini,169119,0,tool_call,task
+gpt-4o-mini,5883,0,tool_call,write_file, write_file, write_file, write_file, write_file, write_file
+gpt-4o-mini,14004,0,tool_call,arxiv_search, arxiv_search, arxiv_search, arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,4931,17,completion,N/A
+gpt-4o-mini,4931,17,completion,N/A
+gpt-4o-mini,4970,141,tool_call,write_todos
+gpt-4o-mini,5186,0,tool_call,task
+gpt-4o-mini,1886,0,tool_call,arxiv_search, arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,67961,0,tool_call,write_file
+gpt-4o-mini,107157,93,completion,N/A
+gpt-4o-mini,11115,0,tool_call,write_todos
+gpt-4o-mini,17635,0,tool_call,task
+gpt-4o-mini,12643,0,tool_call,ls
+gpt-4o-mini,25659,0,tool_call,read_file
+gpt-4o-mini,46391,3576,tool_call,validate_json
+gpt-4o-mini,62942,0,tool_call,write_file
+gpt-4o-mini,91100,0,tool_call,validate_json
+gpt-4o-mini,118231,1389,completion,N/A
+gpt-4o-mini,30060,1291,completion,N/A
+gpt-4o-mini,35430,0,tool_call,glob
+gpt-4o-mini,54378,0,tool_call,glob
+gpt-4o-mini,73891,0,tool_call,glob
+gpt-4o-mini,93971,0,tool_call,glob
+gpt-4o-mini,114616,0,tool_call,glob
+gpt-4o-mini,135828,0,tool_call,glob
+gpt-4o-mini,157605,0,tool_call,glob
+gpt-4o-mini,179949,0,tool_call,glob
+gpt-4o-mini,202858,0,tool_call,glob
+gpt-4o-mini,226334,0,tool_call,glob
+gpt-4o-mini,250375,0,tool_call,glob
+gpt-4o-mini,274983,0,tool_call,glob
+gpt-4o-mini,300156,0,tool_call,glob
+gpt-4o-mini,325896,0,tool_call,glob
+gpt-4o-mini,352201,0,tool_call,glob
+gpt-4o-mini,379073,0,tool_call,glob
+gpt-4o-mini,406510,0,tool_call,glob
+gpt-4o-mini,434514,0,tool_call,glob
+gpt-4o-mini,463083,0,tool_call,glob
+gpt-4o-mini,492219,0,tool_call,glob
+gpt-4o-mini,521920,0,tool_call,glob
+gpt-4o-mini,552188,0,tool_call,glob
+gpt-4o-mini,583021,0,tool_call,glob
+gpt-4o-mini,614421,0,tool_call,glob
+gpt-4o-mini,646386,0,tool_call,glob
+gpt-4o-mini,678918,0,tool_call,glob
+gpt-4o-mini,712015,0,tool_call,glob
+gpt-4o-mini,745679,0,tool_call,glob
+gpt-4o-mini,779908,0,tool_call,glob
+gpt-4o-mini,814704,0,tool_call,glob
+gpt-4o-mini,850065,0,tool_call,glob
+gpt-4o-mini,4931,17,completion,N/A
+gpt-4o-mini,4931,17,completion,N/A
+gpt-4o-mini,4945,0,tool_call,write_file
+gpt-4o-mini,10216,0,tool_call,write_todos
+gpt-4o-mini,16086,0,tool_call,task
+gpt-4o-mini,1889,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,51146,0,tool_call,write_file
+gpt-4o-mini,81827,308,completion,N/A
+gpt-4o-mini,23520,0,tool_call,write_todos
+gpt-4o-mini,30849,0,tool_call,task
+gpt-4o-mini,12652,0,tool_call,read_file
+gpt-4o-mini,30546,3612,tool_call,validate_json
+gpt-4o-mini,41098,0,tool_call,write_file
+gpt-4o-mini,67267,0,tool_call,validate_json
+gpt-4o-mini,93978,3617,completion,N/A
+gpt-4o-mini,60504,3561,completion,N/A
+gpt-4o-mini,82533,0,tool_call,write_todos
+gpt-4o-mini,98467,0,tool_call,read_file
+gpt-4o-mini,127160,0,tool_call,write_todos
+gpt-4o-mini,151365,0,tool_call,task
+gpt-4o-mini,5641,0,tool_call,write_file
+gpt-4o-mini,16727,209,completion,N/A
+gpt-4o-mini,172793,0,tool_call,task
+gpt-4o-mini,5654,0,tool_call,write_file
+gpt-4o-mini,17858,367,completion,N/A
+gpt-4o-mini,197055,0,tool_call,task
+gpt-4o-mini,5639,0,tool_call,write_file
+gpt-4o-mini,16630,193,completion,N/A
+gpt-4o-mini,220294,0,tool_call,task
+gpt-4o-mini,5645,0,tool_call,write_file
+gpt-4o-mini,51531,0,tool_call,write_file
+gpt-4o-mini,109473,0,tool_call,write_file
+gpt-4o-mini,245844,0,tool_call,write_file
+gpt-4o-mini,435754,0,tool_call,write_file
+gpt-4o-mini,4945,0,tool_call,write_file
+gpt-4o-mini,10216,0,tool_call,write_todos
+gpt-4o-mini,16086,0,tool_call,task
+gpt-4o-mini,1890,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,51148,0,tool_call,write_file
+gpt-4o-mini,81863,106,completion,N/A
+gpt-4o-mini,22705,0,tool_call,write_todos
+gpt-4o-mini,29775,175,completion,N/A
+gpt-4o-mini,30821,0,tool_call,read_file
+gpt-4o-mini,52792,0,tool_call,write_todos
+gpt-4o-mini,63819,0,tool_call,task
+gpt-4o-mini,12660,0,tool_call,ls
+gpt-4o-mini,25710,0,tool_call,read_file
+gpt-4o-mini,46444,1387,tool_call,validate_json
+gpt-4o-mini,59264,0,tool_call,write_file
+gpt-4o-mini,90130,0,tool_call,validate_json
+gpt-4o-mini,118570,1416,completion,N/A
+gpt-4o-mini,86315,778,completion,N/A
+gpt-4o-mini,92940,0,tool_call,read_file
+gpt-4o-mini,130283,0,tool_call,glob
+gpt-4o-mini,161049,0,tool_call,write_todos
+gpt-4o-mini,178862,0,tool_call,write_todos
+gpt-4o-mini,205419,0,tool_call,task
+gpt-4o-mini,5634,0,tool_call,write_file
+gpt-4o-mini,16960,396,completion,N/A
+gpt-4o-mini,230214,0,tool_call,task
+gpt-4o-mini,5639,0,tool_call,write_file
+gpt-4o-mini,18480,0,tool_call,arxiv_search
+gpt-4o-mini,43270,0,tool_call,think_tool
+gpt-4o-mini,61608,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,135753,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,231355,0,tool_call,read_file
+gpt-4o-mini,324365,0,tool_call,write_file
+gpt-4o-mini,427854,0,tool_call,edit_file
+gpt-4o-mini,507443,373,completion,N/A
+gpt-4o-mini,256019,0,tool_call,task
+gpt-4o-mini,5645,0,tool_call,write_file
+gpt-4o-mini,17507,435,completion,N/A
+gpt-4o-mini,284167,0,tool_call,task
+gpt-4o-mini,5648,0,tool_call,write_file
+gpt-4o-mini,25440,0,tool_call,arxiv_search
+gpt-4o-mini,56333,0,tool_call,think_tool
+gpt-4o-mini,81390,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,194709,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,343906,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,528981,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,749934,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,1006765,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,4945,0,tool_call,write_file
+gpt-4o-mini,11190,0,tool_call,write_todos
+gpt-4o-mini,18095,0,tool_call,task
+gpt-4o-mini,12630,0,tool_call,read_file
+gpt-4o-mini,27702,0,tool_call,validate_json
+gpt-4o-mini,56262,0,tool_call,write_file
+gpt-4o-mini,94460,1543,completion,N/A
+gpt-4o-mini,31514,0,tool_call,write_file
+gpt-4o-mini,47243,0,tool_call,read_file
+gpt-4o-mini,88575,0,tool_call,edit_file
+gpt-4o-mini,172310,0,tool_call,glob
+gpt-4o-mini,226953,0,tool_call,write_todos
+gpt-4o-mini,256315,0,tool_call,task
+gpt-4o-mini,5606,0,tool_call,write_file
+gpt-4o-mini,11630,0,tool_call,arxiv_search
+gpt-4o-mini,28034,0,tool_call,think_tool
+gpt-4o-mini,39133,0,tool_call,read_file
+gpt-4o-mini,50209,0,tool_call,write_file
+gpt-4o-mini,76713,0,tool_call,edit_file
+gpt-4o-mini,109380,0,tool_call,arxiv_search
+gpt-4o-mini,154141,0,tool_call,think_tool
+gpt-4o-mini,178250,0,tool_call,read_file
+gpt-4o-mini,232471,0,tool_call,write_file
+gpt-4o-mini,289921,0,tool_call,edit_file
+gpt-4o-mini,354415,0,tool_call,arxiv_search
+gpt-4o-mini,428296,0,tool_call,think_tool
+gpt-4o-mini,469485,0,tool_call,read_file
+gpt-4o-mini,603767,0,tool_call,write_file
+gpt-4o-mini,687127,0,tool_call,edit_file
+gpt-4o-mini,777119,0,tool_call,write_file
+gpt-4o-mini,863225,0,tool_call,edit_file
+gpt-4o-mini,953587,0,tool_call,write_file
+gpt-4o-mini,1178495,0,tool_call,edit_file
+gpt-4o-mini,1255694,0,tool_call,write_file
+gpt-4o-mini,1335113,0,tool_call,edit_file
+gpt-4o-mini,1407075,0,tool_call,write_file
+gpt-4o-mini,1674428,0,tool_call,edit_file
+gpt-4o-mini,4946,0,tool_call,write_file
+gpt-4o-mini,11065,0,tool_call,write_todos
+gpt-4o-mini,17912,0,tool_call,task
+gpt-4o-mini,1912,0,tool_call,arxiv_search, arxiv_search
+gpt-4o-mini,38518,0,tool_call,write_file
+gpt-4o-mini,1757370,0,tool_call,write_file
+gpt-4o-mini,63270,414,completion,N/A
+gpt-4o-mini,26738,0,tool_call,write_todos
+gpt-4o-mini,35212,406,completion,N/A
+gpt-4o-mini,2057606,0,tool_call,edit_file
+gpt-4o-mini,2370152,456,completion,N/A
+gpt-4o-mini,290712,0,tool_call,glob
+gpt-4o-mini,348030,0,tool_call,write_todos
+gpt-4o-mini,379938,0,tool_call,task
+gpt-4o-mini,6067,0,tool_call,read_file
+gpt-4o-mini,22569,0,tool_call,read_file
+gpt-4o-mini,90594,0,tool_call,write_file, write_file
+gpt-4o-mini,136712,435,completion,N/A
+gpt-4o-mini,418106,0,tool_call,glob
+gpt-4o-mini,478257,0,tool_call,write_todos
+gpt-4o-mini,511812,0,tool_call,task
+gpt-4o-mini,4952,0,tool_call,write_file
+gpt-4o-mini,4404,0,tool_call,read_file, read_file, glob
+gpt-4o-mini,11102,0,tool_call,write_todos
+gpt-4o-mini,17800,0,tool_call,task
+gpt-4o-mini,21543,0,tool_call,read_file, read_file
+gpt-4o-mini,1898,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,40488,0,tool_call,glob
+gpt-4o-mini,68549,0,tool_call,read_file
+gpt-4o-mini,83300,0,tool_call,glob
+gpt-4o-mini,112373,0,tool_call,glob
+gpt-4o-mini,142030,0,tool_call,glob
+gpt-4o-mini,172207,0,tool_call,glob
+gpt-4o-mini,54328,0,tool_call,write_file
+gpt-4o-mini,188483,1678,completion,N/A
+gpt-4o-mini,86563,338,completion,N/A
+gpt-4o-mini,578228,0,tool_call,glob
+gpt-4o-mini,26236,0,tool_call,write_todos
+gpt-4o-mini,612388,0,tool_call,write_todos
+gpt-4o-mini,34353,0,tool_call,task
+gpt-4o-mini,12662,0,tool_call,read_file
+gpt-4o-mini,650917,0,tool_call,task
+gpt-4o-mini,6068,0,tool_call,read_file
+gpt-4o-mini,22571,0,tool_call,glob
+gpt-4o-mini,34346,0,tool_call,read_file, read_file
+gpt-4o-mini,30521,0,tool_call,validate_json
+gpt-4o-mini,131712,0,tool_call,write_file
+gpt-4o-mini,60988,0,tool_call,write_file
+gpt-4o-mini,101567,1373,completion,N/A
+gpt-4o-mini,175158,0,tool_call,edit_file
+gpt-4o-mini,235336,169,completion,N/A
+gpt-4o-mini,691414,0,tool_call,glob
+gpt-4o-mini,51179,1296,completion,N/A
+gpt-4o-mini,759087,0,tool_call,write_todos
+gpt-4o-mini,798013,0,tool_call,task
+gpt-4o-mini,4376,0,tool_call,read_file, read_file, glob
+gpt-4o-mini,32434,0,tool_call,count_text
+gpt-4o-mini,47890,0,tool_call,read_file
+gpt-4o-mini,60972,0,tool_call,write_file
+gpt-4o-mini,79348,0,tool_call,count_text
+gpt-4o-mini,94109,0,tool_call,glob
+gpt-4o-mini,109157,0,tool_call,count_text
+gpt-4o-mini,124594,0,tool_call,write_file
+gpt-4o-mini,149695,0,tool_call,edit_file
+gpt-4o-mini,177204,0,tool_call,count_text
+gpt-4o-mini,195733,0,tool_call,glob
+gpt-4o-mini,214509,0,tool_call,count_text
+gpt-4o-mini,233714,0,tool_call,write_file
+gpt-4o-mini,267743,0,tool_call,edit_file
+gpt-4o-mini,4952,0,tool_call,write_file
+gpt-4o-mini,11561,0,tool_call,write_todos
+gpt-4o-mini,18759,0,tool_call,task
+gpt-4o-mini,12650,0,tool_call,read_file
+gpt-4o-mini,28509,0,tool_call,write_file
+gpt-4o-mini,51432,0,tool_call,validate_json
+gpt-4o-mini,73521,1151,completion,N/A
+gpt-4o-mini,30975,1052,completion,N/A
+gpt-4o-mini,35387,0,tool_call,glob
+gpt-4o-mini,54838,0,tool_call,task
+gpt-4o-mini,1893,0,tool_call,arxiv_search
+gpt-4o-mini,20834,0,tool_call,write_file
+gpt-4o-mini,37476,135,completion,N/A
+gpt-4o-mini,66655,0,tool_call,glob
+gpt-4o-mini,87538,0,tool_call,write_todos
+gpt-4o-mini,100096,0,tool_call,task
+gpt-4o-mini,5685,0,tool_call,write_todos
+gpt-4o-mini,12688,0,tool_call,write_file
+gpt-4o-mini,19933,0,tool_call,arxiv_search
+gpt-4o-mini,45269,0,tool_call,think_tool
+gpt-4o-mini,58930,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,96414,0,tool_call,arxiv_search, arxiv_search
+gpt-4o-mini,177415,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,243850,0,tool_call,write_file
+gpt-4o-mini,320541,0,tool_call,edit_file
+gpt-4o-mini,408821,0,tool_call,write_file
+gpt-4o-mini,457088,0,tool_call,edit_file
+gpt-4o-mini,506856,461,completion,N/A
+gpt-4o-mini,118465,0,tool_call,glob
+gpt-4o-mini,142207,0,tool_call,write_todos
+gpt-4o-mini,157422,0,tool_call,task
+gpt-4o-mini,6130,0,tool_call,read_file
+gpt-4o-mini,19867,0,tool_call,glob
+gpt-4o-mini,30309,0,tool_call,read_file
+gpt-4o-mini,66556,0,tool_call,write_todos
+gpt-4o-mini,88362,0,tool_call,write_file
+gpt-4o-mini,4953,0,tool_call,write_file
+gpt-4o-mini,11176,0,tool_call,write_todos
+gpt-4o-mini,17990,0,tool_call,task
+gpt-4o-mini,12668,0,tool_call,read_file
+gpt-4o-mini,27679,0,tool_call,validate_json
+gpt-4o-mini,53413,0,tool_call,write_file
+gpt-4o-mini,86774,1232,completion,N/A
+gpt-4o-mini,30208,1115,completion,N/A
+gpt-4o-mini,34877,0,tool_call,read_file
+gpt-4o-mini,64628,0,tool_call,write_todos
+gpt-4o-mini,80154,0,tool_call,task
+gpt-4o-mini,1920,0,tool_call,arxiv_search
+gpt-4o-mini,20888,0,tool_call,read_file, read_file
+gpt-4o-mini,35010,0,tool_call,write_file
+gpt-4o-mini,57500,125,completion,N/A
+gpt-4o-mini,96266,0,tool_call,write_todos
+gpt-4o-mini,112265,0,tool_call,task
+gpt-4o-mini,5619,0,tool_call,read_file
+gpt-4o-mini,19525,0,tool_call,read_file
+gpt-4o-mini,40551,0,tool_call,write_todos
+gpt-4o-mini,67307,1635,completion,N/A
+gpt-4o-mini,143321,0,tool_call,glob
+gpt-4o-mini,177215,0,tool_call,write_todos
+gpt-4o-mini,201732,0,tool_call,task
+gpt-4o-mini,5643,0,tool_call,write_file
+gpt-4o-mini,14729,484,completion,N/A
+gpt-4o-mini,228235,0,tool_call,task
+gpt-4o-mini,5644,0,tool_call,write_file
+gpt-4o-mini,17152,0,tool_call,arxiv_search
+gpt-4o-mini,40651,0,tool_call,think_tool
+gpt-4o-mini,57810,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,124512,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,213619,0,tool_call,arxiv_search, arxiv_search
+gpt-4o-mini,310239,0,tool_call,read_file
+gpt-4o-mini,404867,0,tool_call,write_file, write_file
+gpt-4o-mini,484156,0,tool_call,edit_file, edit_file
+gpt-4o-mini,570291,0,tool_call,write_file
+gpt-4o-mini,649267,0,tool_call,edit_file
+gpt-4o-mini,732019,0,tool_call,write_file
+gpt-4o-mini,896617,550,completion,N/A
+gpt-4o-mini,257168,0,tool_call,task
+gpt-4o-mini,5650,0,tool_call,write_file
+gpt-4o-mini,18301,379,completion,N/A
+gpt-4o-mini,285200,0,tool_call,task
+gpt-4o-mini,5643,0,tool_call,write_file
+gpt-4o-mini,16083,360,completion,N/A
+gpt-4o-mini,314094,0,tool_call,task
+gpt-4o-mini,5651,0,tool_call,write_file
+gpt-4o-mini,15346,367,completion,N/A
+gpt-4o-mini,344500,0,tool_call,glob
+gpt-4o-mini,388037,0,tool_call,write_todos
+gpt-4o-mini,413931,0,tool_call,aggregate_document
+gpt-4o-mini,442935,0,tool_call,write_todos
+gpt-4o-mini,469740,0,tool_call,write_todos
+gpt-4o-mini,497104,170,completion,N/A
+gpt-4o-mini,4952,0,tool_call,write_file
+gpt-4o-mini,11163,0,tool_call,write_todos
+gpt-4o-mini,18044,0,tool_call,task
+gpt-4o-mini,1913,0,tool_call,arxiv_search
+gpt-4o-mini,20873,0,tool_call,read_file, arxiv_search
+gpt-4o-mini,56169,0,tool_call,write_file
+gpt-4o-mini,82546,507,completion,N/A
+gpt-4o-mini,27316,0,tool_call,write_todos
+gpt-4o-mini,35720,0,tool_call,task
+gpt-4o-mini,12662,0,tool_call,read_file
+gpt-4o-mini,30665,0,tool_call,validate_json
+gpt-4o-mini,60032,0,tool_call,write_file
+gpt-4o-mini,98467,1420,completion,N/A
+gpt-4o-mini,53121,1295,completion,N/A
+gpt-4o-mini,61272,0,tool_call,write_todos
+gpt-4o-mini,73584,0,tool_call,read_file
+gpt-4o-mini,123658,0,tool_call,write_todos
+gpt-4o-mini,151831,0,tool_call,task, task, task, task, task, task
+gpt-4o-mini,5634,0,tool_call,write_file
+gpt-4o-mini,13643,233,completion,N/A
+gpt-4o-mini,5638,0,tool_call,write_file
+gpt-4o-mini,14619,375,completion,N/A
+gpt-4o-mini,5637,0,tool_call,write_file
+gpt-4o-mini,5639,0,tool_call,write_file
+gpt-4o-mini,5640,0,tool_call,write_file
+gpt-4o-mini,15384,382,completion,N/A
+gpt-4o-mini,16174,367,completion,N/A
+gpt-4o-mini,15864,291,completion,N/A
+gpt-4o-mini,5633,0,tool_call,write_file
+gpt-4o-mini,16611,204,completion,N/A
+gpt-4o-mini,199832,0,tool_call,write_todos
+gpt-4o-mini,235034,0,tool_call,task, task, task, task, task, task
+gpt-4o-mini,4377,0,tool_call,read_file, read_file, read_file
+gpt-4o-mini,4378,0,tool_call,read_file, read_file, read_file
+gpt-4o-mini,4382,0,tool_call,read_file, read_file, read_file
+gpt-4o-mini,4377,0,tool_call,read_file, read_file, read_file
+gpt-4o-mini,4380,0,tool_call,read_file, read_file, read_file
+gpt-4o-mini,4377,0,tool_call,read_file, read_file, read_file
+gpt-4o-mini,29837,0,tool_call,count_text
+gpt-4o-mini,27184,0,tool_call,count_text
+gpt-4o-mini,28867,0,tool_call,count_text
+gpt-4o-mini,25013,0,tool_call,count_text
+gpt-4o-mini,41406,0,tool_call,glob
+gpt-4o-mini,43942,0,tool_call,glob
+gpt-4o-mini,38130,0,tool_call,glob
+gpt-4o-mini,45399,0,tool_call,glob
+gpt-4o-mini,70007,0,tool_call,glob
+gpt-4o-mini,64521,0,tool_call,glob
+gpt-4o-mini,59536,0,tool_call,read_file
+gpt-4o-mini,76680,0,tool_call,glob
+gpt-4o-mini,31488,1556,completion,N/A
+gpt-4o-mini,84952,0,tool_call,count_text
+gpt-4o-mini,78736,0,tool_call,read_file
+gpt-4o-mini,92965,0,tool_call,count_text
+gpt-4o-mini,100303,0,tool_call,read_file
+gpt-4o-mini,109656,0,tool_call,read_file
+gpt-4o-mini,107880,0,tool_call,count_text
+gpt-4o-mini,95628,0,tool_call,count_text
+gpt-4o-mini,141050,1180,completion,N/A
+gpt-4o-mini,141795,0,tool_call,count_text
+gpt-4o-mini,163096,0,tool_call,count_text
+gpt-4o-mini,221416,0,tool_call,validate_json
+gpt-4o-mini,30518,0,tool_call,count_text, count_text
+gpt-4o-mini,56651,0,tool_call,glob
+gpt-4o-mini,136304,1294,tool_call,write_file
+gpt-4o-mini,257808,0,tool_call,read_file
+gpt-4o-mini,98564,0,tool_call,glob
+gpt-4o-mini,151698,112,completion,N/A
+gpt-4o-mini,120165,0,tool_call,count_text
+gpt-4o-mini,142172,0,tool_call,read_file
+gpt-4o-mini,187505,0,tool_call,count_text
+gpt-4o-mini,338160,1283,tool_call,write_file
+gpt-4o-mini,367144,116,completion,N/A
+gpt-4o-mini,203725,0,tool_call,count_text
+gpt-4o-mini,240101,1290,tool_call,write_file
+gpt-4o-mini,4942,0,tool_call,write_file
+gpt-4o-mini,10210,0,tool_call,write_todos
+gpt-4o-mini,16077,0,tool_call,task
+gpt-4o-mini,1889,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,51146,0,tool_call,write_file
+gpt-4o-mini,82339,102,completion,N/A
+gpt-4o-mini,22674,0,tool_call,write_todos
+gpt-4o-mini,29840,130,completion,N/A
+gpt-4o-mini,4945,0,tool_call,write_file
+gpt-4o-mini,10216,0,tool_call,write_todos
+gpt-4o-mini,16086,0,tool_call,task
+gpt-4o-mini,1889,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,51146,0,tool_call,write_file
+gpt-4o-mini,83092,98,completion,N/A
+gpt-4o-mini,22670,0,tool_call,write_todos
+gpt-4o-mini,29745,0,tool_call,task
+gpt-4o-mini,12643,0,tool_call,ls
+gpt-4o-mini,25677,0,tool_call,read_file
+gpt-4o-mini,48381,0,tool_call,validate_json
+gpt-4o-mini,83973,0,tool_call,write_file
+gpt-4o-mini,127938,1567,completion,N/A
+gpt-4o-mini,46549,1477,completion,N/A
+gpt-4o-mini,55792,0,tool_call,glob
+gpt-4o-mini,75784,0,tool_call,write_todos
+gpt-4o-mini,88349,0,tool_call,task
+gpt-4o-mini,5662,0,tool_call,write_file
+gpt-4o-mini,19456,0,tool_call,arxiv_search
+gpt-4o-mini,43037,0,tool_call,think_tool
+gpt-4o-mini,61699,0,tool_call,read_file, read_file, read_file
+gpt-4o-mini,205977,0,tool_call,write_file, write_file, write_file
+gpt-4o-mini,300929,0,tool_call,edit_file
+gpt-4o-mini,388680,0,tool_call,write_file
+gpt-4o-mini,464822,0,tool_call,edit_file
+gpt-4o-mini,572137,0,tool_call,write_file
+gpt-4o-mini,659896,0,tool_call,edit_file
+gpt-4o-mini,786624,0,tool_call,write_file
+gpt-4o-mini,886906,0,tool_call,edit_file
+gpt-4o-mini,1033047,0,tool_call,write_file
+gpt-4o-mini,1145852,0,tool_call,edit_file
+gpt-4o-mini,1311406,0,tool_call,write_file
+gpt-4o-mini,1436734,0,tool_call,edit_file
+gpt-4o-mini,1620061,0,tool_call,write_file
+gpt-4o-mini,4942,0,tool_call,write_file
+gpt-4o-mini,10210,0,tool_call,write_todos
+gpt-4o-mini,16077,0,tool_call,task
+gpt-4o-mini,1890,0,tool_call,arxiv_search
+gpt-4o-mini,19143,0,tool_call,write_file
+gpt-4o-mini,34400,115,completion,N/A
+gpt-4o-mini,22727,0,tool_call,write_todos
+gpt-4o-mini,29794,175,completion,N/A
+gpt-4o-mini,4945,0,tool_call,write_file
+gpt-4o-mini,10216,0,tool_call,write_todos
+gpt-4o-mini,16069,0,tool_call,task
+gpt-4o-mini,1883,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,51133,0,tool_call,write_file
+gpt-4o-mini,82532,112,completion,N/A
+gpt-4o-mini,22682,0,tool_call,write_todos
+gpt-4o-mini,29582,162,completion,N/A
+gpt-4o-mini,4945,0,tool_call,write_file
+gpt-4o-mini,10216,0,tool_call,write_todos
+gpt-4o-mini,16091,0,tool_call,task
+gpt-4o-mini,1880,0,tool_call,arxiv_search, arxiv_search, arxiv_search
+gpt-4o-mini,25573,0,tool_call,write_file
+gpt-4o-mini,44017,394,completion,N/A
+gpt-4o-mini,23843,0,tool_call,write_todos
+gpt-4o-mini,31250,0,tool_call,task
+gpt-4o-mini,12646,0,tool_call,read_file
+gpt-4o-mini,31107,0,tool_call,validate_json
+gpt-4o-mini,59732,0,tool_call,write_file
+gpt-4o-mini,96332,1283,completion,N/A
+gpt-4o-mini,46647,1192,completion,N/A
+gpt-4o-mini,54156,0,tool_call,glob
+gpt-4o-mini,73602,0,tool_call,write_todos
+gpt-4o-mini,85510,0,tool_call,task
+gpt-4o-mini,5637,0,tool_call,write_file
+gpt-4o-mini,19539,436,completion,N/A
+gpt-4o-mini,101816,0,tool_call,glob
+gpt-4o-mini,124042,0,tool_call,write_todos
+gpt-4o-mini,138178,0,tool_call,task
+gpt-4o-mini,6068,0,tool_call,read_file
+gpt-4o-mini,20898,0,tool_call,glob
+gpt-4o-mini,31837,0,tool_call,read_file, read_file
+gpt-4o-mini,88314,0,tool_call,write_file, write_file
+gpt-4o-mini,126139,0,tool_call,write_file, write_file
+gpt-4o-mini,170511,0,tool_call,write_file, write_file
+gpt-4o-mini,217421,761,completion,N/A
+gpt-4o-mini,162827,0,tool_call,glob
+gpt-4o-mini,176731,0,tool_call,write_todos
+gpt-4o-mini,193468,0,tool_call,task
+gpt-4o-mini,4390,0,tool_call,read_file, read_file, glob
+gpt-4o-mini,17797,0,tool_call,count_text, read_file
+gpt-4o-mini,30076,0,tool_call,count_text, count_text, count_text, count_text, count_text, count_text
+gpt-4o-mini,46520,0,tool_call,glob
+gpt-4o-mini,59322,0,tool_call,read_file
+gpt-4o-mini,77507,0,tool_call,count_text, count_text, count_text, count_text, count_text
+gpt-4o-mini,95346,0,tool_call,glob
+gpt-4o-mini,110719,0,tool_call,count_text, count_text
+gpt-4o-mini,127644,1302,completion,N/A
+gpt-4o-mini,232156,0,tool_call,write_todos
+gpt-4o-mini,250893,0,tool_call,task
+gpt-4o-mini,6071,0,tool_call,read_file
+gpt-4o-mini,20905,0,tool_call,read_file
+gpt-4o-mini,34341,0,tool_call,write_file
+gpt-4o-mini,51265,0,tool_call,edit_file
+gpt-4o-mini,74882,242,completion,N/A
+gpt-4o-mini,273939,0,tool_call,glob
+gpt-4o-mini,291385,0,tool_call,write_todos
+gpt-4o-mini,311683,0,tool_call,task
+gpt-4o-mini,4371,0,tool_call,read_file, read_file, glob
+gpt-4o-mini,26832,0,tool_call,glob
+gpt-4o-mini,45592,0,tool_call,ls
+gpt-4o-mini,55876,0,tool_call,read_file
+gpt-4o-mini,77316,0,tool_call,count_text
+gpt-4o-mini,89689,0,tool_call,count_text
+gpt-4o-mini,117071,1200,completion,N/A
+gpt-4o-mini,358295,0,tool_call,write_todos
+gpt-4o-mini,382300,0,tool_call,task
+gpt-4o-mini,6098,0,tool_call,read_file
+gpt-4o-mini,20959,0,tool_call,read_file
+gpt-4o-mini,36633,0,tool_call,write_file
+gpt-4o-mini,58443,0,tool_call,edit_file
+gpt-4o-mini,92644,260,completion,N/A
+gpt-4o-mini,411513,0,tool_call,glob
+gpt-4o-mini,432439,0,tool_call,write_todos
+gpt-4o-mini,456839,0,tool_call,task
+gpt-4o-mini,4371,0,tool_call,read_file, read_file
+gpt-4o-mini,17634,0,tool_call,glob
+gpt-4o-mini,36044,0,tool_call,glob
+gpt-4o-mini,54998,0,tool_call,glob
+gpt-4o-mini,65180,0,tool_call,read_file
+gpt-4o-mini,99628,0,tool_call,count_text
+gpt-4o-mini,113568,0,tool_call,count_text
+gpt-4o-mini,156684,1186,completion,N/A
+gpt-4o-mini,513030,0,tool_call,write_todos
+gpt-4o-mini,541443,0,tool_call,task
+gpt-4o-mini,6098,0,tool_call,read_file
+gpt-4o-mini,20959,0,tool_call,read_file
+gpt-4o-mini,40858,0,tool_call,write_file
+gpt-4o-mini,64080,0,tool_call,edit_file
+gpt-4o-mini,99693,270,completion,N/A
+gpt-4o-mini,576307,0,tool_call,glob
+gpt-4o-mini,600708,0,tool_call,write_todos
+gpt-4o-mini,629206,0,tool_call,task
+gpt-4o-mini,4371,0,tool_call,read_file, read_file, glob
+gpt-4o-mini,26832,0,tool_call,glob
+gpt-4o-mini,45592,0,tool_call,glob
+gpt-4o-mini,55592,0,tool_call,count_text
+gpt-4o-mini,66015,0,tool_call,read_file
+gpt-4o-mini,111883,0,tool_call,count_text
+gpt-4o-mini,153035,0,tool_call,read_file
+gpt-4o-mini,214200,1272,completion,N/A
+gpt-4o-mini,698088,0,tool_call,write_todos
+gpt-4o-mini,731039,0,tool_call,task
+gpt-4o-mini,6099,0,tool_call,read_file
+gpt-4o-mini,20960,0,tool_call,glob
+gpt-4o-mini,42604,0,tool_call,read_file
+gpt-4o-mini,75988,0,tool_call,write_file
+gpt-4o-mini,107022,0,tool_call,edit_file
+gpt-4o-mini,153521,281,completion,N/A
+gpt-4o-mini,771786,0,tool_call,glob
+gpt-4o-mini,799762,0,tool_call,write_todos
+gpt-4o-mini,832458,0,tool_call,task
+gpt-4o-mini,4371,0,tool_call,read_file, read_file
+gpt-4o-mini,17634,0,tool_call,glob
+gpt-4o-mini,36044,0,tool_call,glob
+gpt-4o-mini,54998,0,tool_call,glob
+gpt-4o-mini,65180,0,tool_call,read_file
+gpt-4o-mini,122198,0,tool_call,count_text
+gpt-4o-mini,138962,0,tool_call,count_text
+gpt-4o-mini,184902,1163,completion,N/A
+gpt-4o-mini,907755,0,tool_call,write_todos
+gpt-4o-mini,945083,0,tool_call,task
+gpt-4o-mini,6098,0,tool_call,read_file
+gpt-4o-mini,20959,0,tool_call,read_file
+gpt-4o-mini,49308,0,tool_call,write_file
+gpt-4o-mini,75354,0,tool_call,edit_file
+gpt-4o-mini,113791,236,completion,N/A
+gpt-4o-mini,989521,0,tool_call,glob
+gpt-4o-mini,1020917,0,tool_call,write_todos
+gpt-4o-mini,1057655,0,tool_call,task
+gpt-4o-mini,4371,0,tool_call,read_file, read_file
+gpt-4o-mini,17634,0,tool_call,glob
+gpt-4o-mini,36044,0,tool_call,glob
+gpt-4o-mini,54998,0,tool_call,glob
+gpt-4o-mini,65180,0,tool_call,read_file
+gpt-4o-mini,133483,0,tool_call,count_text
+gpt-4o-mini,151659,0,tool_call,count_text
+gpt-4o-mini,199011,1277,completion,N/A
+gpt-4o-mini,1147473,0,tool_call,write_todos
+gpt-4o-mini,1189150,0,tool_call,task
+gpt-4o-mini,6097,0,tool_call,read_file
+gpt-4o-mini,20956,0,tool_call,read_file
+gpt-4o-mini,53529,0,tool_call,write_file
+gpt-4o-mini,80985,0,tool_call,edit_file
+gpt-4o-mini,120833,296,completion,N/A
+gpt-4o-mini,1241510,0,tool_call,glob
+gpt-4o-mini,1276497,0,tool_call,write_todos
+gpt-4o-mini,1317448,0,tool_call,task
+gpt-4o-mini,4371,0,tool_call,read_file, read_file
+gpt-4o-mini,17634,0,tool_call,glob
+gpt-4o-mini,36044,0,tool_call,glob
+gpt-4o-mini,54998,0,tool_call,glob
+gpt-4o-mini,65180,0,tool_call,read_file
+gpt-4o-mini,144768,0,tool_call,count_text
+gpt-4o-mini,190020,1332,completion,N/A
+gpt-4o-mini,1420300,0,tool_call,write_todos
+gpt-4o-mini,1466549,0,tool_call,task
+gpt-4o-mini,6097,0,tool_call,read_file
+gpt-4o-mini,20956,0,tool_call,read_file
+gpt-4o-mini,57754,0,tool_call,write_file
+gpt-4o-mini,86622,0,tool_call,edit_file
+gpt-4o-mini,127882,346,completion,N/A
+gpt-4o-mini,1527074,0,tool_call,glob
+gpt-4o-mini,1565756,0,tool_call,write_todos
+gpt-4o-mini,1611025,0,tool_call,task
+gpt-4o-mini,4371,0,tool_call,read_file, read_file
+gpt-4o-mini,17634,0,tool_call,glob
+gpt-4o-mini,36044,0,tool_call,glob
+gpt-4o-mini,54998,0,tool_call,glob
+gpt-4o-mini,65180,0,tool_call,read_file
+gpt-4o-mini,156053,0,tool_call,count_text
+gpt-4o-mini,202717,1257,completion,N/A
+gpt-4o-mini,1720853,0,tool_call,write_todos
+gpt-4o-mini,1771860,0,tool_call,task
+gpt-4o-mini,6099,0,tool_call,read_file
+gpt-4o-mini,20960,0,tool_call,read_file
+gpt-4o-mini,61985,0,tool_call,write_file
+gpt-4o-mini,92267,0,tool_call,edit_file
+gpt-4o-mini,140481,278,completion,N/A
+gpt-4o-mini,1834791,0,tool_call,glob
+gpt-4o-mini,1877032,0,tool_call,write_todos
+gpt-4o-mini,1926482,0,tool_call,task
+gpt-4o-mini,4371,0,tool_call,read_file, read_file, glob
+gpt-4o-mini,26832,0,tool_call,glob
+gpt-4o-mini,45592,0,tool_call,glob
+gpt-4o-mini,55592,0,tool_call,read_file, count_text
+gpt-4o-mini,137090,0,tool_call,read_file
+gpt-4o-mini,238332,0,tool_call,count_text
+gpt-4o-mini,295321,1354,completion,N/A

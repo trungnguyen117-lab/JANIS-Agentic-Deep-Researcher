@@ -29,6 +29,8 @@
   width: 24px;
   height: 24px;
   color: var(--color-primary);
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .title {
@@ -87,8 +89,12 @@
   text-align: center;
 
   .emptyIcon {
+    width: 64px;
+    height: 64px;
     color: var(--color-text-tertiary);
     margin-bottom: $spacing-lg;
+    object-fit: cover;
+    border-radius: 50%;
   }
 
   h2 {
@@ -170,40 +176,122 @@
 }
 
 .inputForm {
-  display: flex;
-  gap: $spacing-sm;
-  align-items: center;
-  padding: $spacing-md $spacing-lg;
-  border-top: 1px solid var(--color-border);
-  background-color: var(--color-background);
-  flex-shrink: 0;
+  position: absolute;
+  bottom: $spacing-lg;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 800px;
+  padding: 0 $spacing-lg;
+  z-index: 20;
+  background: transparent;
+  border: none;
 }
 
-.inputLeft {
+.inputRow {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
-  padding-right: $spacing-sm;
-  border-right: 1px solid var(--color-border);
-  margin-right: $spacing-sm;
+  gap: $spacing-sm;
+  width: 100%;
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: $spacing-sm;
+  border-radius: $radius-2xl;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+
+  &:focus-within {
+    box-shadow: 
+      0 10px 25px -5px rgba(0, 0, 0, 0.1),
+      0 8px 10px -6px rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+  }
 }
 
 .input {
   flex: 1;
-  padding-left: 10px;
+  padding: $spacing-sm $spacing-md;
+  border: none;
+  background: transparent;
+  font-size: $font-size-base;
+  
+  &:focus {
+    outline: none;
+    box-shadow: none;
+  }
 }
 
 .sendButton {
-  padding: $spacing-sm $spacing-md;
+  width: 40px;
+  height: 40px;
+  border-radius: $radius-full;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-primary);
+  color: white;
+  transition: all 0.2s;
+  flex-shrink: 0;
+
+  &:hover:not(:disabled) {
+    transform: scale(1.05);
+    background-color: var(--color-primary);
+    opacity: 0.9;
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: var(--color-text-tertiary);
+  }
 }
 
 .stopButton {
-  padding: $spacing-sm $spacing-md;
+  width: 40px;
+  height: 40px;
+  border-radius: $radius-full;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background-color: var(--color-error);
   color: white;
+  transition: all 0.2s;
+  flex-shrink: 0;
 
   &:hover {
     opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+.attachButton {
+  color: var(--color-text-secondary);
+  transition: all 0.2s;
+  
+  &:hover:not(:disabled) {
+    color: var(--color-primary);
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+}
+
+// Dark mode adjustments
+@media (prefers-color-scheme: dark) {
+  .inputRow {
+    background-color: rgba(30, 30, 30, 0.8);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .attachButton:hover:not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.1);
   }
 }
 

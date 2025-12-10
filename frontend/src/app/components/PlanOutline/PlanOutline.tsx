@@ -4,7 +4,7 @@ import React, { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PlanOutline as PlanOutlineType, Section, SubSection } from "../../types/types";
-import { GripVertical, Plus, Trash2, Edit2, Save, X } from "lucide-react";
+import { GripVertical, Plus, Trash2, Edit2, Save, X, Eye } from "lucide-react";
 import styles from "./PlanOutline.module.scss";
 
 interface PlanOutlineProps {
@@ -31,6 +31,8 @@ export const PlanOutline: React.FC<PlanOutlineProps> = ({
   const [editEstimatedDepth, setEditEstimatedDepth] = useState("");
   const [editingSubsectionId, setEditingSubsectionId] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [viewingSection, setViewingSection] = useState<Section | null>(null);
+  const [isEditingInModal, setIsEditingInModal] = useState(false);
   
   // Log when outline prop changes
   React.useEffect(() => {
@@ -386,6 +388,15 @@ export const PlanOutline: React.FC<PlanOutlineProps> = ({
                 <div className={styles.sectionMeta}>
                   <span className={styles.metaLabel}>Estimated Length:</span>
                   <span>{section.estimatedDepth || "2-3 pages (default)"}</span>
+                  <Button
+                    onClick={() => setViewingSection(section)}
+                    size="sm"
+                    variant="outline"
+                    className={styles.viewDetailsButton}
+                  >
+                    <Eye size={14} />
+                    View Details
+                  </Button>
                 </div>
                 
                 {/* Subsections */}
@@ -485,6 +496,146 @@ export const PlanOutline: React.FC<PlanOutlineProps> = ({
           {localOutline.metadata.estimatedTotalPages && (
             <span>Estimated Pages: {localOutline.metadata.estimatedTotalPages}</span>
           )}
+        </div>
+      )}
+      
+      {/* Section Details Modal */}
+      {viewingSection && (
+        <div className={styles.modalOverlay} onClick={() => setViewingSection(null)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3 className={styles.modalTitle}>{isEditingInModal ? "Edit Section" : viewingSection.title}</h3>
+              <div className={styles.modalHeaderActions}>
+                {editable && !isEditingInModal && (
+                  <Button
+                    onClick={() => {
+                      setEditTitle(viewingSection.title);
+                      setEditDescription(viewingSection.description);
+                      setEditEstimatedDepth(viewingSection.estimatedDepth || "");
+                      setIsEditingInModal(true);
+                    }}
+                    size="sm"
+                    variant="outline"
+                    className={styles.modalEditButton}
+                  >
+                    <Edit2 size={16} />
+                    Edit
+                  </Button>
+                )}
+                <Button
+                  onClick={() => {
+                    setViewingSection(null);
+                    setIsEditingInModal(false);
+                  }}
+                  size="sm"
+                  variant="ghost"
+                  className={styles.modalCloseButton}
+                >
+                  <X size={20} />
+                </Button>
+              </div>
+            </div>
+            <div className={styles.modalBody}>
+              {isEditingInModal ? (
+                <div className={styles.modalEditForm}>
+                  <div className={styles.modalSection}>
+                    <h4 className={styles.modalSectionTitle}>Title</h4>
+                    <Input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      placeholder="Section title"
+                      className={styles.modalEditInput}
+                    />
+                  </div>
+                  
+                  <div className={styles.modalSection}>
+                    <h4 className={styles.modalSectionTitle}>Description</h4>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      placeholder="Section description"
+                      className={styles.modalEditTextarea}
+                      rows={4}
+                    />
+                  </div>
+                  
+                  <div className={styles.modalSection}>
+                    <h4 className={styles.modalSectionTitle}>Estimated Length</h4>
+                    <Input
+                      value={editEstimatedDepth}
+                      onChange={(e) => setEditEstimatedDepth(e.target.value)}
+                      placeholder="e.g., 2-3 pages, 1500 words"
+                      className={styles.modalEditInput}
+                    />
+                  </div>
+                  
+                  <div className={styles.modalEditActions}>
+                    <Button
+                      onClick={() => {
+                        handleSectionUpdate(viewingSection.id, {
+                          title: editTitle,
+                          description: editDescription,
+                          estimatedDepth: editEstimatedDepth || undefined,
+                          subsections: viewingSection.subsections,
+                        });
+                        setViewingSection({
+                          ...viewingSection,
+                          title: editTitle,
+                          description: editDescription,
+                          estimatedDepth: editEstimatedDepth || undefined,
+                        });
+                        setIsEditingInModal(false);
+                      }}
+                      size="sm"
+                      variant="default"
+                      className={styles.modalSaveButton}
+                    >
+                      <Save size={16} />
+                      Save Changes
+                    </Button>
+                    <Button
+                      onClick={() => setIsEditingInModal(false)}
+                      size="sm"
+                      variant="outline"
+                      className={styles.modalCancelButton}
+                    >
+                      <X size={16} />
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className={styles.modalSection}>
+                    <h4 className={styles.modalSectionTitle}>Description</h4>
+                    <p className={styles.modalSectionText}>{viewingSection.description}</p>
+                  </div>
+                  
+                  <div className={styles.modalSection}>
+                    <h4 className={styles.modalSectionTitle}>Estimated Length</h4>
+                    <p className={styles.modalSectionText}>{viewingSection.estimatedDepth || "2-3 pages (default)"}</p>
+                  </div>
+                  
+                  {viewingSection.subsections && viewingSection.subsections.length > 0 && (
+                    <div className={styles.modalSection}>
+                      <h4 className={styles.modalSectionTitle}>Subsections ({viewingSection.subsections.length})</h4>
+                      <div className={styles.modalSubsectionsList}>
+                        {[...viewingSection.subsections].sort((a, b) => a.order - b.order).map((subsection) => (
+                          <div key={subsection.id} className={styles.modalSubsectionCard}>
+                            <div className={styles.modalSubsectionHeader}>
+                              <span className={styles.modalSubsectionNumber}>{subsection.order}</span>
+                              <h5 className={styles.modalSubsectionTitle}>{subsection.title}</h5>
+                            </div>
+                            <p className={styles.modalSubsectionDescription}>{subsection.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
