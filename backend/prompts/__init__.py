@@ -8,7 +8,7 @@ from .report_writer_prompts import report_writer_prompt
 from .individual_researcher_prompts import individual_researcher_prompt
 from .results_interpretation_prompts import results_interpretation_agent_prompt
 from .section_writer_prompts import section_writer_prompt
-
+from .new_prompt import new_prompt
 __all__ = [
     "orchestrator_instructions",
     "critique_prompt",
@@ -18,5 +18,5 @@ __all__ = [
     "individual_researcher_prompt",
     "results_interpretation_agent_prompt",
     "section_writer_prompt",
+    "new_prompt"
 ]
-

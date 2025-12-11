@@ -376,6 +376,31 @@ class TokenUsageStateMiddleware(AgentMiddleware):
             self.logger.addHandler(file_handler)
         self.logger.propagate = False
     
+    def before_agent(self, state: AgentState, runtime: Runtime[Any]) -> dict[str, Any] | None:
+        """Initialize token usage in state before agent starts (synchronous).
+        
+        This ensures token_usage exists in state from the beginning.
+        Real-time updates happen in aafter_model after each model call.
+        This is thread-isolated because state is thread-isolated.
+        """
+        # Initialize token_usage if it doesn't exist in state
+        # aafter_model will update it after each model call
+        if state and "token_usage" not in state:
+            return {
+                "token_usage": {
+                    "input": 0,
+                    "output": 0,
+                    "completion": 0,
+                    "reasoning": 0,
+                    "cache": 0,
+                    "prompt": 0,
+                    "total": 0,
+                    "cost": 0.0,
+                },
+                "current_model": state.get("current_model", "unknown"),
+            }
+        return None
+    
     async def abefore_agent(self, state: AgentState, runtime: Runtime[Any]) -> dict[str, Any] | None:
         """Initialize token usage in state before agent starts.
         
@@ -610,6 +635,73 @@ class TokenUsageStateMiddleware(AgentMiddleware):
         # Return state update directly - this updates state immediately after each model call
         # According to LangChain docs, @after_model can return a dict to update state
         # This provides real-time updates to the frontend
+        return {
+            "token_usage": cumulative,
+            "current_model": current_model,
+        }
+    
+    def after_model(self, state: AgentState, runtime: Runtime[Any]) -> dict[str, Any] | None:
+        """Update token usage in state after each model call (synchronous).
+        
+        This runs after EACH model call, providing real-time token usage updates.
+        Reads token usage from the latest messages and updates state immediately.
+        This is thread-isolated because state is thread-isolated.
+        """
+        # Recalculate token usage from scratch by reading all AI messages
+        # This ensures accuracy and thread isolation (each thread's state has its own messages)
+        cumulative = {
+            "input": 0,
+            "output": 0,
+            "completion": 0,
+            "reasoning": 0,
+            "cache": 0,
+            "prompt": 0,
+            "total": 0,
+            "cost": 0.0,
+        }
+        
+        # Read token usage from all AI messages in state (from stream_usage=True)
+        messages = state.get("messages", []) if state else []
+        current_model = state.get("current_model", "unknown") if state else "unknown"
+        
+        self.logger.info(f"after_model: Processing {len(messages)} messages")
+        
+        # Extract token usage from all AI messages
+        for msg in messages:
+            if isinstance(msg, AIMessage):
+                # Check usage_metadata first (LangChain's native field - available immediately with stream_usage=True)
+                if hasattr(msg, "usage_metadata") and msg.usage_metadata:
+                    usage_meta = msg.usage_metadata
+                    cumulative["input"] += getattr(usage_meta, "input_tokens", 0) or 0
+                    cumulative["output"] += getattr(usage_meta, "output_tokens", 0) or 0
+                    cumulative["completion"] += getattr(usage_meta, "completion_tokens", 0) or 0
+                    cumulative["reasoning"] += getattr(usage_meta, "reasoning_tokens", 0) or 0
+                    cumulative["cache"] += getattr(usage_meta, "cache_read_tokens", 0) or 0
+                    cumulative["prompt"] += getattr(usage_meta, "prompt_tokens", 0) or 0
+                    cumulative["total"] += getattr(usage_meta, "total_tokens", 0) or 0
+        
+        # Calculate cost if pricing is available
+        try:
+            from backend.config.model import get_model_pricing
+            pricing = get_model_pricing(current_model)
+            cumulative["cost"] = (
+                (cumulative["input"] / 1_000_000) * pricing.get("input_price_per_million", 0) +
+                (cumulative["output"] / 1_000_000) * pricing.get("output_price_per_million", 0)
+            ) or 0.0
+        except Exception:
+            pass
+        
+        # Log calculated token usage to file
+        self.logger.info(
+            f"after_model: Calculated token usage - "
+            f"input={cumulative['input']}, output={cumulative['output']}, "
+            f"prompt={cumulative['prompt']}, cache={cumulative['cache']}, "
+            f"completion={cumulative['completion']}, reasoning={cumulative['reasoning']}, "
+            f"total={cumulative['total']}, cost={cumulative['cost']}, model={current_model}, "
+            f"messages_count={len(messages)}"
+        )
+        
+        # Return state update directly - this updates state immediately after each model call
         return {
             "token_usage": cumulative,
             "current_model": current_model,

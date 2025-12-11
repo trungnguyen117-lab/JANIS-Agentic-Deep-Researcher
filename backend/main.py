@@ -20,7 +20,7 @@ from backend.config import get_model, AVAILABLE_MODELS
 from backend.config.langfuse import get_langfuse_handler
 from backend.config.opentelemetry_tracker import setup_opentelemetry_tracking
 from backend.tools import arxiv_search
-from backend.prompts import orchestrator_instructions
+from backend.prompts import orchestrator_instructions, new_prompt
 from backend.agents import create_sub_agents
 
 # Load environment variables
@@ -66,7 +66,7 @@ def create_agent(model_name: str | None = None):
     agent = create_deep_agent(
         model=model,
         tools=[arxiv_search],  # Orchestrator tools: basic coordination (aggregate_document is provided by FilesystemMiddleware)
-        system_prompt=orchestrator_instructions,
+        system_prompt=new_prompt,
         subagents=sub_agents
     )
     

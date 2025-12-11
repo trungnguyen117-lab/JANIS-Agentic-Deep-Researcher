@@ -61,12 +61,31 @@ class ModelSelectorMiddleware(AgentMiddleware):
         # No model specified, use default
         return {"selected_model": "gpt-4o-mini"}
     
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelResponse:
+        """Intercept model calls and replace model with selected model from state (synchronous)."""
+        # Get the current state to check for selected model
+        # Note: We can't access state directly here, so we'll need to get it from runtime
+        # For now, we'll use the model from the request, but in the future we could
+        # intercept and replace it based on state
+        
+        # The actual model replacement would require access to the runtime/state,
+        # which is not directly available in wrap_model_call.
+        # For now, the model selection is stored in state and can be used
+        # by checking state in before_agent or by modifying the agent creation.
+        
+        # Call the handler with the original request
+        return handler(request)
+    
     async def awrap_model_call(
         self,
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse:
-        """Intercept model calls and replace model with selected model from state."""
+        """Intercept model calls and replace model with selected model from state (asynchronous)."""
         # Get the current state to check for selected model
         # Note: We can't access state directly here, so we'll need to get it from runtime
         # For now, we'll use the model from the request, but in the future we could

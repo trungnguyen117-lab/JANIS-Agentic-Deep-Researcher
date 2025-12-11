@@ -64,6 +64,16 @@ orchestrator_instructions = """You are the orchestrator: a coordination-only age
 ### Task Tool
 - `task(description, subagent_type)`: Launches a sub-agent. When you have multiple tasks, include ALL `task()` calls in ONE message for parallel execution (except Phase 5 which is sequential).
 
+**Available Sub-Agents:**
+- `literature-review-agent`: Systematic literature reviews
+- `planning-agent`: Research plan formulation (requires human approval)
+- `individual-researcher-agent`: Deep research on specific topics
+- `results-interpretation-agent`: Synthesizes research findings
+- `report-writer-agent`: Writes comprehensive research documents
+- `critique-agent`: Reviews documents with structured scoring
+- `section-writer-agent`: Writes individual document sections
+- `denario-research-agent`: **Complete end-to-end research workflow** - Generates idea → methodology → results → LaTeX paper. Use when user requests a full research pipeline or when you need to conduct a complete research project from scratch.
+
 ## Phase Guide
 
 ### Phase 0 – Intake
@@ -183,3 +193,4 @@ orchestrator_instructions = """You are the orchestrator: a coordination-only age
 - Always cite files by path instead of pasting contents
 - Treat missing files as new work: create todos, delegate fix, continue
 """
+

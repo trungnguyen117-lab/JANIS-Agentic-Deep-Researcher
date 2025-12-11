@@ -17,6 +17,7 @@ from ..prompts import (
     results_interpretation_agent_prompt,
     section_writer_prompt,
 )
+from .denario_adapter import DenarioSubAgentAdapter
 
 
 def create_sub_agents():
@@ -78,12 +79,20 @@ def create_sub_agents():
         "system_prompt": section_writer_prompt,
     }
 
+    # Denario Research Agent - Full research workflow from idea to paper
+    denario_agent = {
+        "name": "denario-research-agent",
+        "description": "Complete end-to-end research workflow using Denario. Use this agent when you need to conduct a full research project from idea generation to paper writing. The agent will: 1) Generate research idea from data description, 2) Create methodology, 3) Generate results through experiments, 4) Write a complete LaTeX paper. Provide a detailed data description including available data, tools, and research objectives. The workflow is AUTONOMOUS and will save all outputs to a project directory. This is ideal for comprehensive research projects that need the full pipeline.",
+        "runnable": DenarioSubAgentAdapter(),
+    }
+
     return [
-        literature_review_agent,
-        planning_agent,
-        individual_researcher_agent,
-        results_interpretation_agent,
-        report_writer_agent,
-        critique_sub_agent,
-        section_writer_agent,
+        # literature_review_agent,
+        # planning_agent,
+        # individual_researcher_agent,
+        # results_interpretation_agent,
+        # report_writer_agent,
+        # critique_sub_agent,
+        # section_writer_agent,
+        denario_agent,
     ]

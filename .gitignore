@@ -12,9 +12,10 @@ wheels/
 .env
 *.log
 deep-agents-ui/
-denario
+
 node_modules/
 yarn.lock
 docker-compose.yml
 .dockerignore
 *log
+denario_project/
