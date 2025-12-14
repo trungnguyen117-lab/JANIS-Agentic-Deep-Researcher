@@ -265,6 +265,97 @@ export function useChat(
           // The actual tool calls are in the ToolMessage's additional_kwargs
         }
         
+        // Handle Denario progress updates from stream_writer
+        // These come as custom events with denario_progress, denario_complete, denario_error
+        const denarioProgress = nodeData && typeof nodeData === 'object' ? (nodeData as any).denario_progress : null;
+        const denarioComplete = nodeData && typeof nodeData === 'object' ? (nodeData as any).denario_complete : null;
+        const denarioError = nodeData && typeof nodeData === 'object' ? (nodeData as any).denario_error : null;
+        const denarioLog = nodeData && typeof nodeData === 'object' ? (nodeData as any).denario_log : null;
+        
+        if (denarioProgress || denarioComplete || denarioError || denarioLog) {
+          // Find the generate_paper_from_outline tool call and update its progress
+          setMessages((prevMessages) => {
+            return prevMessages.map((msg) => {
+              const toolCalls = (msg as any).toolCalls || [];
+              const updatedToolCalls = toolCalls.map((toolCall: any) => {
+                if (toolCall.name === "generate_paper_from_outline") {
+                  const currentProgress = toolCall.progress || {
+                    current: 0,
+                    total: 0,
+                    message: "",
+                    updates: [],
+                    logs: [],
+                  };
+                  
+                  if (denarioLog) {
+                    // Add log message to logs array and update main message (keep last 100 logs)
+                    const logs = currentProgress.logs || [];
+                    const logMessage = denarioLog.message || "";
+                    return {
+                      ...toolCall,
+                      progress: {
+                        ...currentProgress,
+                        message: logMessage, // Update main message to show latest log
+                        logs: [...logs, {
+                          timestamp: Date.now(),
+                          message: logMessage,
+                        }].slice(-100), // Keep last 100 log messages
+                      },
+                    };
+                  }
+                  
+                  if (denarioProgress) {
+                    return {
+                      ...toolCall,
+                      progress: {
+                        ...currentProgress,
+                        current: denarioProgress.current ?? currentProgress.current + 1,
+                        total: denarioProgress.total ?? currentProgress.total,
+                        message: denarioProgress.message ?? currentProgress.message,
+                        node: denarioProgress.node,
+                        updates: [
+                          ...currentProgress.updates,
+                          {
+                            timestamp: Date.now(),
+                            message: denarioProgress.message,
+                            node: denarioProgress.node,
+                          },
+                        ],
+                      },
+                    };
+                  } else if (denarioComplete) {
+                    return {
+                      ...toolCall,
+                      status: "completed",
+                      progress: {
+                        ...currentProgress,
+                        message: denarioComplete.message || "Completed",
+                        current: denarioComplete.total || currentProgress.total,
+                        total: denarioComplete.total || currentProgress.total,
+                      },
+                    };
+                  } else if (denarioError) {
+                    return {
+                      ...toolCall,
+                      status: "error",
+                      progress: {
+                        ...currentProgress,
+                        message: denarioError.message || "Error occurred",
+                      },
+                    };
+                  }
+                }
+                return toolCall;
+              });
+              
+              return {
+                ...msg,
+                toolCalls: updatedToolCalls,
+              };
+            });
+          });
+        }
+        
         if (nodeData?.available_models && onModelsUpdate) {
           onModelsUpdate(nodeData.available_models);
         }
@@ -397,20 +488,15 @@ export function useChat(
         content: message,
       };
       
-      // Check if this is the first message (no previous messages)
-      const isFirstMessage = stream.messages.length === 0;
-      
-      // Build config - include model selection only on first message
+      // Build config - the graph uses the model set at initialization
+      // Model selection is handled via MODEL_NAME environment variable
       const config: any = {
         recursion_limit: 200, // Increased to handle improvement loops for multiple sections
       };
       
-      // Only pass model selection on first message
-      if (isFirstMessage && selectedModel) {
-        config.configurable = {
-          model: selectedModel,
-        };
-      }
+      // Note: Model selection is not supported via configurable parameters
+      // The graph uses the model from MODEL_NAME environment variable
+      // To change the model, set MODEL_NAME before starting the backend
       
       stream.submit(
         { messages: [humanMessage] },
@@ -424,7 +510,7 @@ export function useChat(
         },
       );
     },
-    [stream, selectedModel],
+    [stream],
   );
 
   const stopStream = useCallback(() => {

@@ -159,13 +159,12 @@ export const ChatMessage = React.memo<ChatMessageProps>(
       return JSON.stringify(subAgents);
     }, [subAgents]);
 
-    // Filter orchestrator tool calls (non-task tool calls)
-    // These are tool calls made by the orchestrator itself, not delegated to sub-agents
-    const orchestratorToolCalls = useMemo(() => {
+    // Filter tool calls (simple outline agent - no orchestrator/sub-agents)
+    // All tool calls are from the outline agent itself
+    const agentToolCalls = useMemo(() => {
       const filtered = toolCalls.filter((toolCall: ToolCall) => {
-        // Exclude "task" tool calls (these are sub-agent delegations)
-        const isTaskCall = toolCall.name === "task";
-        return !isTaskCall;
+        // Simple outline agent - all tool calls are relevant
+        return true;
       });
       
       return filtered;
@@ -252,10 +251,10 @@ export const ChatMessage = React.memo<ChatMessageProps>(
               )}
             </div>
           )}
-          {/* Show orchestrator tool calls (non-task tool calls) in the main chat */}
-          {!isUser && orchestratorToolCalls.length > 0 && (
+          {/* Show agent tool calls in the main chat */}
+          {!isUser && agentToolCalls.length > 0 && (
             <div className={styles.toolCallsGroup}>
-              <ToolCallsGroup toolCalls={orchestratorToolCalls} />
+              <ToolCallsGroup toolCalls={agentToolCalls} />
             </div>
           )}
           {/* Show sub-agent indicators (task tool calls delegate to sub-agents) */}

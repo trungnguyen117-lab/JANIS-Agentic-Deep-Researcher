@@ -67,13 +67,21 @@ export default function HomePage() {
 
   // Extract outline from plan_outline.json file
   const outline = React.useMemo<PlanOutline | null>(() => {
+    // Check for outline in project directory first, then root
     const outlineFile = Object.keys(files).find(f => 
+      f === "project/plan_outline.json" ||
+      f === "/project/plan_outline.json" ||
       f === "/plan_outline.json" || 
       f === "plan_outline.json" ||
-      f.endsWith("/plan_outline.json")
+      f.endsWith("/plan_outline.json") ||
+      f.endsWith("project/plan_outline.json")
     );
     
-    if (!outlineFile) return null;
+    if (!outlineFile) {
+      console.log("[Page] No outline file found. Available files:", Object.keys(files));
+      return null;
+    }
+    console.log("[Page] Found outline file:", outlineFile);
     
     try {
       const fileContent = files[outlineFile];
@@ -178,6 +186,50 @@ export default function HomePage() {
     fetchThreadState();
   }, [threadId, session?.accessToken]);
 
+  // Memoize all callbacks to prevent infinite re-renders
+  const handleTodosUpdate = useCallback((todos: TodoItem[]) => {
+    setTodos(todos);
+  }, []);
+
+  const handleFilesUpdate = useCallback((newFiles: Record<string, string>) => {
+    setFiles((prevFiles) => {
+      // Merge new files with existing files to prevent losing files on partial updates
+      // Only update files that have non-empty content to prevent overwriting with empty values
+      const merged = { ...prevFiles };
+      Object.entries(newFiles).forEach(([path, content]) => {
+        // Only update if content is not empty/undefined/null
+        if (content && typeof content === 'string' && content.trim().length > 0) {
+          merged[path] = content;
+        } else if (content === null || content === undefined) {
+          // If explicitly set to null/undefined, remove the file
+          delete merged[path];
+        }
+        // If content is empty string, keep existing content (don't overwrite)
+      });
+      return merged;
+    });
+  }, []);
+
+  const handleTokenUsageUpdate = useCallback((usage: { input: number; output: number; completion: number; reasoning: number; cache?: number; prompt?: number; total: number; cost?: number }) => {
+    setTokenUsage(usage);
+  }, []);
+
+  const handleModelsUpdate = useCallback((models: Array<{ name: string; input_price_per_million: number; output_price_per_million: number }>) => {
+    setAvailableModels(models);
+  }, []);
+
+  const handleProcessedMessagesReady = useCallback((processedMessages: any[]) => {
+    setProcessedMessages((prev) => {
+      // Only update if the messages actually changed
+      const prevStr = JSON.stringify(prev);
+      const newStr = JSON.stringify(processedMessages);
+      if (prevStr !== newStr) {
+        return processedMessages;
+      }
+      return prev;
+    });
+  }, []);
+
   const handleNewThread = useCallback(() => {
     setThreadId(null);
     setSelectedSubAgent(null);
@@ -185,6 +237,35 @@ export default function HomePage() {
     setFiles({});
     // Token usage will automatically be zero for new thread (no state = zero usage)
   }, [setThreadId]);
+
+  const handleOutlineSave = useCallback((savedOutline: PlanOutline) => {
+    // Update frontend state immediately so user sees the change
+    const outlineJson = JSON.stringify(savedOutline, null, 2);
+    setFiles((prevFiles) => {
+      return { ...prevFiles, "project/plan_outline.json": outlineJson };
+    });
+    
+    // Also send message to agent to save to filesystem
+    if (sendMessageCallbackRef.current) {
+      sendMessageCallbackRef.current(`Please update the plan outline file with this structure:\n\n\`\`\`OUTLINE\n${outlineJson}\n\`\`\`\n\nUse create_outline to save this to project/plan_outline.json`);
+    }
+  }, []);
+
+  const handleSendMessageReady = useCallback((sendMessage: (message: string) => void) => {
+    console.log("[Page] Received sendMessage from ChatInterface");
+    sendMessageCallbackRef.current = sendMessage;
+  }, []);
+
+  const handleApproveOutline = useCallback(() => {
+    // Send message to approve outline and start paper generation
+    console.log("[Page] Approve button clicked, sendMessageCallbackRef.current:", !!sendMessageCallbackRef.current);
+    if (sendMessageCallbackRef.current) {
+      console.log("[Page] Sending approve message...");
+      sendMessageCallbackRef.current("I approve this outline. Please proceed with generating the paper using the generate_paper_from_outline tool.");
+    } else {
+      console.warn("[Page] sendMessageCallbackRef.current is null - cannot send approve message");
+    }
+  }, []);
 
   return (
     <div className={styles.container}>
@@ -195,13 +276,8 @@ export default function HomePage() {
         onFileClick={setSelectedFile}
         collapsed={sidebarCollapsed}
         onToggleCollapse={toggleSidebar}
-        onOutlineSave={React.useCallback((savedOutline: PlanOutline) => {
-          // Save edited outline back to the file by sending a message
-          if (sendMessageCallbackRef.current) {
-            const outlineJson = JSON.stringify(savedOutline, null, 2);
-            sendMessageCallbackRef.current(`Please update the plan outline file with this structure:\n\n\`\`\`OUTLINE\n${outlineJson}\n\`\`\`\n\nUse write_file to save this to /plan_outline.json`);
-          }
-        }, [])}
+        onOutlineSave={handleOutlineSave}
+        onApproveOutline={handleApproveOutline}
       />
       <div className={styles.mainContent}>
         <ChatInterface
@@ -209,48 +285,16 @@ export default function HomePage() {
           selectedSubAgent={selectedSubAgent}
           setThreadId={setThreadId}
           onSelectSubAgent={setSelectedSubAgent}
-          onTodosUpdate={React.useCallback((todos: TodoItem[]) => {
-            setTodos(todos);
-          }, [])}
-          onFilesUpdate={React.useCallback((newFiles: Record<string, string>) => {
-            setFiles((prevFiles) => {
-              // Merge new files with existing files to prevent losing files on partial updates
-              // Only update files that have non-empty content to prevent overwriting with empty values
-              const merged = { ...prevFiles };
-              Object.entries(newFiles).forEach(([path, content]) => {
-                // Only update if content is not empty/undefined/null
-                if (content && typeof content === 'string' && content.trim().length > 0) {
-                  merged[path] = content;
-                } else if (content === null || content === undefined) {
-                  // If explicitly set to null/undefined, remove the file
-                  delete merged[path];
-                }
-                // If content is empty string, keep existing content (don't overwrite)
-              });
-              return merged;
-            });
-          }, [])}
+          onTodosUpdate={handleTodosUpdate}
+          onFilesUpdate={handleFilesUpdate}
           onNewThread={handleNewThread}
           isLoadingThreadState={isLoadingThreadState}
-          onTokenUsageUpdate={React.useCallback((usage: { input: number; output: number; completion: number; reasoning: number; cache?: number; prompt?: number; total: number; cost?: number }) => {
-            setTokenUsage(usage);
-          }, [])}
+          onTokenUsageUpdate={handleTokenUsageUpdate}
           tokenUsage={tokenUsage}
-          onModelsUpdate={React.useCallback((models: Array<{ name: string; input_price_per_million: number; output_price_per_million: number }>) => {
-            setAvailableModels(models);
-          }, [])}
+          onModelsUpdate={handleModelsUpdate}
           availableModels={availableModels}
-          onProcessedMessagesReady={React.useCallback((processedMessages: any[]) => {
-            setProcessedMessages((prev) => {
-              // Only update if the messages actually changed
-              const prevStr = JSON.stringify(prev);
-              const newStr = JSON.stringify(processedMessages);
-              if (prevStr !== newStr) {
-                return processedMessages;
-              }
-              return prev;
-            });
-          }, [])}
+          onProcessedMessagesReady={handleProcessedMessagesReady}
+          onSendMessageReady={handleSendMessageReady}
         />
         {selectedSubAgent && (
           <SubAgentPanel

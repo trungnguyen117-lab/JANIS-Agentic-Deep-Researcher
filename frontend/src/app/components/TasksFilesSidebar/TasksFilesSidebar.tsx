@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { PlanOutline as PlanOutlineComponent } from "../PlanOutline/PlanOutline";
 import type { TodoItem, FileItem, PlanOutline } from "../../types/types";
 import { extractFileContent } from "../../utils/fileContentUtils";
+import { getDeployment } from "@/lib/environment/deployments";
 import styles from "./TasksFilesSidebar.module.scss";
 
 interface TasksFilesSidebarProps {
@@ -27,10 +28,11 @@ interface TasksFilesSidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   onOutlineSave?: (outline: PlanOutline) => void;
+  onApproveOutline?: () => void; // Callback to approve outline and start paper generation
 }
 
 export const TasksFilesSidebar = React.memo<TasksFilesSidebarProps>(
-  ({ todos, files, outline, onFileClick, collapsed, onToggleCollapse, onOutlineSave }) => {
+  ({ todos, files, outline, onFileClick, collapsed, onToggleCollapse, onOutlineSave, onApproveOutline }) => {
     // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
     // This ensures hooks are always called in the same order
     
@@ -170,31 +172,78 @@ export const TasksFilesSidebar = React.memo<TasksFilesSidebarProps>(
 
           <TabsContent value="files" className={styles.tabContent}>
             <ScrollArea className={styles.scrollArea}>
-              {Object.keys(files).length === 0 ? (
-                <div className={styles.emptyState}>
-                  <p>No files yet</p>
-                </div>
-              ) : (
-                <div className={styles.fileTree}>
-                  {Object.keys(files).map((file) => {
-                    // Use utility function to extract content from deepagents format
-                    const fileContent = extractFileContent(files[file]);
-                    return (
-                      <div key={file} className={styles.fileItem}>
-                        <div
-                          className={styles.fileRow}
-                          onClick={() =>
-                            onFileClick({ path: file, content: fileContent })
-                          }
-                        >
-                          <FileText size={16} />
-                          <span className={styles.fileName}>{file}</span>
+              {(() => {
+                // Filter to show only LaTeX and JSON files
+                const filteredFiles = Object.keys(files).filter((file) => {
+                  const lowerFile = file.toLowerCase();
+                  // Show plan_outline.json (any path)
+                  if (lowerFile.includes('plan_outline.json')) {
+                    return true;
+                  }
+                  // Show all .tex files in paper/ directory
+                  if (lowerFile.includes('paper/') && lowerFile.endsWith('.tex')) {
+                    return true;
+                  }
+                  return false;
+                });
+
+                if (filteredFiles.length === 0) {
+                  return (
+                    <div className={styles.emptyState}>
+                      <p>No files yet</p>
+                    </div>
+                  );
+                }
+
+                // Sort files: outline first, then LaTeX files (final first, then others)
+                const sortedFiles = filteredFiles.sort((a, b) => {
+                  const aLower = a.toLowerCase();
+                  const bLower = b.toLowerCase();
+                  
+                  // Outline always first
+                  if (aLower.includes('plan_outline.json')) return -1;
+                  if (bLower.includes('plan_outline.json')) return 1;
+                  
+                  // Final LaTeX file second
+                  if (aLower.includes('paper_v4_final.tex')) return -1;
+                  if (bLower.includes('paper_v4_final.tex')) return 1;
+                  
+                  // Other LaTeX files alphabetically
+                  return a.localeCompare(b);
+                });
+
+                return (
+                  <div className={styles.fileTree}>
+                    {sortedFiles.map((file) => {
+                      // Use utility function to extract content from deepagents format
+                      const fileContent = extractFileContent(files[file]);
+                      
+                      // Get display name (simplify path)
+                      let displayName = file;
+                      if (file.includes('plan_outline.json')) {
+                        displayName = 'plan_outline.json';
+                      } else if (file.includes('paper/')) {
+                        // Extract just the filename from paper/ directory
+                        displayName = file.split('paper/').pop() || file;
+                      }
+                      
+                      return (
+                        <div key={file} className={styles.fileItem}>
+                          <div
+                            className={styles.fileRow}
+                            onClick={() =>
+                              onFileClick({ path: file, content: fileContent })
+                            }
+                          >
+                            <FileText size={16} />
+                            <span className={styles.fileName}>{displayName}</span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </ScrollArea>
           </TabsContent>
 
@@ -208,6 +257,22 @@ export const TasksFilesSidebar = React.memo<TasksFilesSidebarProps>(
                     onOutlineChange={handleOutlineChange}
                     onSave={handleOutlineSave}
                   />
+                  {onApproveOutline && (
+                    <div className={styles.approveSection}>
+                      <Button
+                        onClick={onApproveOutline}
+                        size="lg"
+                        className={styles.approveButton}
+                        variant="default"
+                      >
+                        <CheckCircle size={20} />
+                        Approve Outline & Generate Paper
+                      </Button>
+                      <p className={styles.approveHint}>
+                        Click to approve this outline and start the paper generation process with Denario.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </ScrollArea>
             ) : (

@@ -1,55 +1,103 @@
-# Hướng dẫn sử dụng repo
+# JANIS Agentic Deep Researcher
 
-## Bước 1: Điều kiện tiên quyết
+Research automation system with dynamic paper outline support, integrating Denario paper generation with orchestrator planning.
 
-Cài đặt [uv](https://docs.astral.sh/uv/) — trình quản lý môi trường nhanh cho Python.
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-Trên Windows, bạn có thể tải bản cài đặt trực tiếp từ trang chủ của UV.
-
----
-
-## Bước 2: Clone repo
+## Quick Start
 
 ```bash
-git clone hhttps://github.com/trungnguyen117-lab/JANIS-Agentic-Deep-Researcher.git
+# 1. Install dependencies
+make install              # Both backend and frontend
+# Or separately:
+make install-backend-dev  # Backend with dev dependencies
+make install-frontend     # Frontend
+
+# 2. Configure (unified .env for both frontend and backend)
+cp .env.example .env
+# Edit .env and add your API keys and frontend config
+
+# 3. Start development servers
+make dev                  # Both backend and frontend
+# Or separately:
+make dev-backend          # Backend (LangGraph Studio)
+make dev-frontend         # Frontend (Next.js)
 ```
 
----
+## Prerequisites
 
-## Bước 3: Cấu hình môi trường
+- Python 3.12+ and [uv](https://github.com/astral-sh/uv)
+- Node.js 18+
+- **LaTeX Compiler (for PDF generation)**: `xelatex` and `bibtex`
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get update
+  sudo apt-get install texlive-xetex texlive-latex-extra
+  
+  # macOS (with Homebrew)
+  brew install --cask mactex
+  
+  # Or minimal install
+  brew install basictex
+  ```
+  
+  **Note**: LaTeX files are generated even without the compiler, but PDF compilation will fail. You can use the `.tex` files directly or compile them manually later.
 
-Đi tới từng thư mục `frontend` và `backend`, chỉnh sửa các biến môi trường trong file `.env` cho phù hợp:
+## Project Structure
+
+```
+├── backend/              # Python backend (LangGraph, Denario)
+│   └── src/lib/
+│       ├── denario/      # Paper generation
+│       └── deepagents/   # Deep Agents framework
+├── .env                  # Unified config (create from .env.example)
+├── frontend/             # Next.js frontend
+├── plan/                 # Implementation docs
+│   ├── CONTEXT.md       # Architecture overview
+│   └── PLAN.md          # Implementation plan
+└── Makefile             # Development commands
+```
+
+## Common Commands
 
 ```bash
-cd frontend
-# Mở và chỉnh sửa file .env
-cd ../backend
-# Mở và chỉnh sửa file .env
+make help                # Show all commands
+make install             # Install both backend and frontend
+make install-backend-dev # Install backend with dev deps
+make install-frontend    # Install frontend deps
+make test                # Run all tests
+make lint                # Lint code
+make format              # Format code
+make dev                 # Start both servers
 ```
 
-## Template mẫu trong .env.example
+## Documentation
 
-## Bước 4: Khởi chạy Frontend
+- **Quick Start**: See `QUICKSTART.md` for detailed setup
+- **Architecture**: `plan/CONTEXT.md` - System architecture
+- **Implementation**: `plan/PLAN.md` - Development plan
+- **OpenAI Setup**: `backend/docs/OPENAI_COMPATIBLE_SETUP.md` - Custom API endpoints
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## Features
 
-Frontend sẽ chạy tại địa chỉ mặc định:
-[http://localhost:3000](http://localhost:3000)
+- Dynamic paper outline system
+- Denario paper generation integration
+- LaTeX paper generation (requires xelatex for PDF compilation)
+- OpenAI-compatible API support
+- Backward compatible
 
----
+## Paper Generation
 
-## Bước 5: Khởi chạy Backend
+The system uses Denario to generate scientific papers from outlines. The paper generation process:
 
-```bash
-uv sync
-cd backend
-langgraph dev --allow-blocking
-```
+1. **Creates an outline** using the outline agent
+2. **Generates LaTeX source files** for each section
+3. **Compiles to PDF** (requires xelatex installed)
+
+**Output locations:**
+- LaTeX files: `project/paper/temp/*.tex`
+- Compiled PDF: `project/paper/temp/*.pdf` (if xelatex is installed)
+
+If xelatex is not installed, LaTeX files are still generated and can be compiled manually or used as-is.
+
+## License
+
+MIT

@@ -107,6 +107,99 @@
   }
 }
 
+.paperGenBanner {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  color: white;
+  padding: $spacing-md $spacing-lg;
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  position: sticky;
+  top: 0;
+}
+
+.paperGenSpinner {
+  animation: spin 1s linear infinite;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.paperGenContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-xs;
+}
+
+.paperGenTitle {
+  font-weight: $font-weight-semibold;
+  font-size: $font-size-base;
+}
+
+.paperGenMessage {
+  font-size: $font-size-sm;
+  opacity: 0.9;
+}
+
+.paperGenProgress {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  margin-top: $spacing-xs;
+}
+
+.paperGenProgressBar {
+  flex: 1;
+  height: 6px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.paperGenProgressFill {
+  height: 100%;
+  background-color: white;
+  transition: width 0.3s ease;
+  border-radius: 3px;
+}
+
+.paperGenProgressText {
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  white-space: nowrap;
+}
+
+.paperGenLogs {
+  margin-top: $spacing-sm;
+  max-height: 150px;
+  overflow-y: auto;
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: $radius-sm;
+  padding: $spacing-xs;
+  font-family: 'Courier New', monospace;
+  font-size: $font-size-xs;
+}
+
+.paperGenLogLine {
+  padding: 2px 0;
+  opacity: 0.9;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .threadLoadingState {
   display: flex;
   margin-top: 100px;
@@ -124,6 +217,7 @@
   flex: 1;
   overflow-y: auto;
   padding: $spacing-lg;
+  padding-bottom: calc($spacing-lg + 100px); // Add extra padding at bottom to prevent overlap with input box
 
   &::-webkit-scrollbar {
     width: 8px;

@@ -9,6 +9,19 @@ export interface ToolCall {
   _uniqueId?: string; // Unique identifier for deduplication: `${id}-${parentToolCallId || 'main'}-${messageId || 'unknown'}`
   _source?: string; // Source of the tool call: 'ai_message' | 'tool_message' | 'state_map'
   _messageId?: string; // ID of the message this tool call came from
+  progress?: ToolProgress; // Progress updates for long-running tools (e.g., Denario)
+}
+
+export interface ToolProgress {
+  current: number;
+  total: number;
+  message: string;
+  node?: string;
+  updates: Array<{
+    timestamp: number;
+    message: string;
+    node?: string;
+  }>;
 }
 
 export interface SubAgent {

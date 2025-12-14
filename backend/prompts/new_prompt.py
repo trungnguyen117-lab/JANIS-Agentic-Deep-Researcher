@@ -1,1 +1,0 @@
-new_prompt = "Use denario research agent to research the question: [question]"

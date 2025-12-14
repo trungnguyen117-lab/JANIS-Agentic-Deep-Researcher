@@ -20,7 +20,7 @@ interface ToolCallBoxProps {
 export const ToolCallBox = React.memo<ToolCallBoxProps>(({ toolCall }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const { name, args, result, status, uniqueId, source } = useMemo(() => {
+  const { name, args, result, status, uniqueId, source, progress } = useMemo(() => {
     const toolName = toolCall.name || "Unknown Tool";
     const toolArgs = toolCall.args || "{}";
     let parsedArgs = {};
@@ -34,6 +34,7 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(({ toolCall }) => {
     const toolStatus = toolCall.status || "completed";
     const uniqueId = toolCall._uniqueId || toolCall.id || "unknown";
     const source = toolCall._source || "unknown";
+    const toolProgress = toolCall.progress || null;
 
     // Debug logging to verify uniqueId is set
     if (!toolCall._uniqueId) {
@@ -54,6 +55,7 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(({ toolCall }) => {
       status: toolStatus,
       uniqueId,
       source,
+      progress: toolProgress,
     };
   }, [toolCall]);
 
@@ -74,7 +76,7 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(({ toolCall }) => {
     setIsExpanded((prev) => !prev);
   }, []);
 
-  const hasContent = result || Object.keys(args).length > 0;
+  const hasContent = result || Object.keys(args).length > 0 || progress;
 
   return (
     <div className={styles.container}>
@@ -93,6 +95,16 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(({ toolCall }) => {
           )}
           {statusIcon}
           <span className={styles.toolName}>{name}</span>
+          {progress && progress.total > 0 && (
+            <span className={styles.progressBadge}>
+              {progress.current}/{progress.total}
+            </span>
+          )}
+          {progress && progress.message && !isExpanded && (
+            <span className={styles.progressMessage} title={progress.message}>
+              {progress.message}
+            </span>
+          )}
           <span 
             className={styles.uniqueId} 
             title={`Unique ID: ${uniqueId}\nSource: ${source}\nID: ${toolCall.id}\nMessage ID: ${toolCall._messageId || 'N/A'}\nParent: ${toolCall.parentToolCallId || 'N/A'}`}
@@ -107,6 +119,44 @@ export const ToolCallBox = React.memo<ToolCallBoxProps>(({ toolCall }) => {
 
       {isExpanded && hasContent && (
         <div className={styles.content}>
+          {progress && (
+            <div className={styles.section}>
+              <h4 className={styles.sectionTitle}>Progress</h4>
+              {progress.total > 0 && (
+                <div className={styles.progressBar}>
+                  <div 
+                    className={styles.progressFill}
+                    style={{ width: `${(progress.current / progress.total) * 100}%` }}
+                  />
+                  <span className={styles.progressText}>
+                    {progress.current} / {progress.total}
+                  </span>
+                </div>
+              )}
+              {progress.message && (
+                <div className={styles.progressCurrentMessage}>
+                  {progress.message}
+                </div>
+              )}
+              {progress.updates && progress.updates.length > 0 && (
+                <div className={styles.progressHistory}>
+                  <h5 className={styles.progressHistoryTitle}>Recent Updates</h5>
+                  <ul className={styles.progressHistoryList}>
+                    {progress.updates.slice(-10).reverse().map((update, idx) => (
+                      <li key={idx} className={styles.progressHistoryItem}>
+                        <span className={styles.progressHistoryTime}>
+                          {new Date(update.timestamp).toLocaleTimeString()}
+                        </span>
+                        <span className={styles.progressHistoryMessage}>
+                          {update.message}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
           {Object.keys(args).length > 0 && (
             <div className={styles.section}>
               <h4 className={styles.sectionTitle}>Arguments</h4>

@@ -1,0 +1,6 @@
+# uv configuration file
+# This file configures uv behavior
+
+# Automatically create virtual environment if it doesn't exist
+# uv sync will create .venv automatically
+

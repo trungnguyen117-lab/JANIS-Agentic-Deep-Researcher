@@ -1,4 +1,4 @@
-@import "../../styles/variables";
+@use "../../styles/variables" as *;
 
 .sidebar {
   width: $sidebar-width;
@@ -207,6 +207,30 @@
 }
 
 // Outline Styles
+.approveSection {
+  padding: $spacing-lg;
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-surface-secondary);
+  margin-top: $spacing-md;
+}
+
+.approveButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-sm;
+  font-weight: $font-weight-semibold;
+  padding: $spacing-md;
+}
+
+.approveHint {
+  margin-top: $spacing-sm;
+  font-size: $font-size-sm;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
 .outlineWrapper {
   padding: $spacing-md;
   width: 100%;

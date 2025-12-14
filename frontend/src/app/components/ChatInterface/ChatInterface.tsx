@@ -37,6 +37,7 @@ interface ChatInterfaceProps {
   onTokenUsageUpdate?: (usage: { input: number; output: number; completion: number; reasoning: number; cache?: number; prompt?: number; total: number; cost?: number }) => void;
   onModelsUpdate?: (models: Array<{ name: string; input_price_per_million: number; output_price_per_million: number }>) => void;
   onProcessedMessagesReady?: (processedMessages: any[]) => void; // Callback to pass processed messages to parent
+  onSendMessageReady?: (sendMessage: (message: string) => void) => void; // Callback to expose sendMessage to parent
 }
 
 export const ChatInterface = React.memo<ChatInterfaceProps>(
@@ -54,6 +55,7 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
     onTokenUsageUpdate,
     onModelsUpdate,
     onProcessedMessagesReady,
+    onSendMessageReady,
   }) => {
     const [input, setInput] = useState("");
     const [isThreadHistoryOpen, setIsThreadHistoryOpen] = useState(false);
@@ -620,6 +622,14 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
       }
     }, [processedMessages, onProcessedMessagesReady]);
 
+    // Expose sendMessage to parent component
+    useEffect(() => {
+      if (onSendMessageReady && sendMessage) {
+        console.log("[ChatInterface] Exposing sendMessage to parent");
+        onSendMessageReady(sendMessage);
+      }
+    }, [sendMessage, onSendMessageReady]);
+
     return (
       <div className={styles.container}>
         <div className={styles.header}>
@@ -666,6 +676,55 @@ export const ChatInterface = React.memo<ChatInterfaceProps>(
                 <LoaderCircle className={styles.threadLoadingSpinner} />
               </div>
             )}
+            {/* Paper generation progress banner */}
+            {(() => {
+              // Check if there's an active paper generation tool call
+              const paperGenToolCall = processedMessages
+                .flatMap((data) => data.toolCalls || [])
+                .find((tc: ToolCall) => 
+                  tc.name === "generate_paper_from_outline" && 
+                  (tc.status === "pending" || tc.status === "running" || tc.status === "in_progress" || (tc.progress && tc.progress.current < tc.progress.total))
+                );
+              
+              if (paperGenToolCall) {
+                return (
+                  <div className={styles.paperGenBanner}>
+                    <LoaderCircle className={styles.paperGenSpinner} />
+                    <div className={styles.paperGenContent}>
+                      <div className={styles.paperGenTitle}>Generating Paper with Denario...</div>
+                      {paperGenToolCall.progress?.message ? (
+                        <div className={styles.paperGenMessage}>{paperGenToolCall.progress.message}</div>
+                      ) : (
+                        <div className={styles.paperGenMessage}>Initializing paper generation workflow...</div>
+                      )}
+                      {paperGenToolCall.progress && paperGenToolCall.progress.total > 0 && (
+                        <div className={styles.paperGenProgress}>
+                          <div className={styles.paperGenProgressBar}>
+                            <div 
+                              className={styles.paperGenProgressFill}
+                              style={{ width: `${(paperGenToolCall.progress.current / paperGenToolCall.progress.total) * 100}%` }}
+                            />
+                          </div>
+                          <span className={styles.paperGenProgressText}>
+                            Step {paperGenToolCall.progress.current} of {paperGenToolCall.progress.total}
+                          </span>
+                        </div>
+                      )}
+                      {paperGenToolCall.progress?.logs && paperGenToolCall.progress.logs.length > 0 && (
+                        <div className={styles.paperGenLogs}>
+                          {paperGenToolCall.progress.logs.slice(-5).map((log: any, idx: number) => (
+                            <div key={idx} className={styles.paperGenLogLine}>
+                              {log.message}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
             <div className={styles.messagesList}>
               {processedMessages
                 .filter((data) => {

@@ -30,6 +30,18 @@ export const FileViewDialog = React.memo<FileViewDialogProps>(
       return fileExtension === "md" || fileExtension === "markdown";
     }, [fileExtension]);
 
+    const isLatex = useMemo(() => {
+      return fileExtension === "tex";
+    }, [fileExtension]);
+
+    const isPdf = useMemo(() => {
+      return fileExtension === "pdf";
+    }, [fileExtension]);
+
+    const isPaperFile = useMemo(() => {
+      return file.path.startsWith("paper/");
+    }, [file.path]);
+
     // Close export menu when clicking outside
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -84,6 +96,7 @@ export const FileViewDialog = React.memo<FileViewDialogProps>(
         ini: "ini",
         dockerfile: "dockerfile",
         makefile: "makefile",
+        tex: "latex",
       };
       return languageMap[fileExtension] || "text";
     }, [fileExtension]);
@@ -102,7 +115,21 @@ export const FileViewDialog = React.memo<FileViewDialogProps>(
       }
     }, [contentString]);
 
-    const handleDownload = useCallback(() => {
+    const handleDownload = useCallback(async () => {
+      // For paper files, download from API endpoint
+      if (isPaperFile) {
+        const { getDeployment } = await import("@/lib/environment/deployments");
+        const deployment = getDeployment();
+        
+        if (isLatex) {
+          window.open(`${deployment.deploymentUrl}/api/paper/latex`, '_blank');
+        } else if (isPdf) {
+          window.open(`${deployment.deploymentUrl}/api/paper/pdf`, '_blank');
+        }
+        return;
+      }
+      
+      // For other files, download from content
       if (contentString) {
         const blob = new Blob([contentString], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
@@ -114,7 +141,7 @@ export const FileViewDialog = React.memo<FileViewDialogProps>(
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
-    }, [contentString, file.path]);
+    }, [contentString, file.path, isPaperFile, isLatex, isPdf]);
 
     const handleExportMarkdown = useCallback(() => {
       handleDownload();
@@ -287,21 +314,77 @@ export const FileViewDialog = React.memo<FileViewDialogProps>(
                   )}
                 </div>
               ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleDownload}
-                  className={styles.actionButton}
-                >
-                  <Download size={16} />
-                  Download
-                </Button>
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDownload}
+                    className={styles.actionButton}
+                  >
+                    <Download size={16} />
+                    Download
+                  </Button>
+                  {isLatex && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        const { getDeployment } = await import("@/lib/environment/deployments");
+                        const deployment = getDeployment();
+                        try {
+                          // Try to download PDF directly first
+                          const pdfResponse = await fetch(`${deployment.deploymentUrl}/api/paper/pdf`);
+                          if (pdfResponse.ok) {
+                            const blob = await pdfResponse.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = "paper_v4_final.pdf";
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            window.URL.revokeObjectURL(url);
+                          } else {
+                            // If PDF doesn't exist, try to convert
+                            const convertResponse = await fetch(`${deployment.deploymentUrl}/api/paper/convert-to-pdf`);
+                            if (convertResponse.ok) {
+                              const blob = await convertResponse.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement("a");
+                              a.href = url;
+                              a.download = "paper_v4_final.pdf";
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              window.URL.revokeObjectURL(url);
+                            } else {
+                              const error = await convertResponse.json();
+                              alert(`Failed to get PDF: ${error.detail || 'PDF not available. Try converting first.'}`);
+                            }
+                          }
+                        } catch (error) {
+                          alert(`Error getting PDF: ${error}`);
+                        }
+                      }}
+                      className={styles.actionButton}
+                    >
+                      <FileDown size={16} />
+                      Download PDF
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           </div>
 
           <div className={styles.contentArea}>
-            {contentString ? (
+            {isPdf && isPaperFile ? (
+              <div style={{ padding: "2rem", textAlign: "center" }}>
+                <p style={{ marginBottom: "1rem", color: "var(--color-text-secondary)" }}>
+                  PDF files cannot be displayed inline. Click "Download" to view the PDF.
+                </p>
+              </div>
+            ) : contentString ? (
               isMarkdown ? (
                 <div className={styles.markdownWrapper}>
                   <MarkdownContent content={contentString} />
