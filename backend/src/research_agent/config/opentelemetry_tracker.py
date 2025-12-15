@@ -118,24 +118,24 @@ def setup_httpx_interception():
                                 #     )
                                 # except Exception as e:
                                 #     logger.warning(f"Failed to add token usage from OpenLIT: {e}")
+                                
+                                # Also write to debug log (same format as OpenLIT)
+                                try:
+                                    debug_log_file = _project_root / "token_count_debug.log"
+                                    # Determine call type from response
+                                    finish_reason = response_json.get("choices", [{}])[0].get("finish_reason", "stop")
+                                    call_type = "tool_call" if finish_reason == "tool_calls" else "completion"
+                                    tool_name = "N/A"
+                                    if call_type == "tool_call":
+                                        # Try to get tool name from response
+                                        tool_calls = response_json.get("choices", [{}])[0].get("message", {}).get("tool_calls", [])
+                                        if tool_calls:
+                                            tool_name = tool_calls[0].get("function", {}).get("name", "N/A")
                                     
-                                    # Also write to debug log (same format as OpenLIT)
-                                    try:
-                                        debug_log_file = _project_root / "token_count_debug.log"
-                                        # Determine call type from response
-                                        finish_reason = response_json.get("choices", [{}])[0].get("finish_reason", "stop")
-                                        call_type = "tool_call" if finish_reason == "tool_calls" else "completion"
-                                        tool_name = "N/A"
-                                        if call_type == "tool_call":
-                                            # Try to get tool name from response
-                                            tool_calls = response_json.get("choices", [{}])[0].get("message", {}).get("tool_calls", [])
-                                            if tool_calls:
-                                                tool_name = tool_calls[0].get("function", {}).get("name", "N/A")
-                                        
-                                        with open(debug_log_file, "a", encoding="utf-8") as f:
-                                            f.write(f"{model},{prompt_tokens},{completion_tokens},{call_type},{tool_name}\n")
-                                    except Exception:
-                                        pass  # Silently fail debug logging
+                                    with open(debug_log_file, "a", encoding="utf-8") as f:
+                                        f.write(f"{model},{prompt_tokens},{completion_tokens},{call_type},{tool_name}\n")
+                                except Exception:
+                                    pass  # Silently fail debug logging
                                 except Exception as e:
                                     _write_to_log(f"Failed to add token usage to state: {e}")
                 except Exception as e:
@@ -254,24 +254,24 @@ def setup_async_httpx_interception():
                                 #     )
                                 # except Exception as e:
                                 #     logger.warning(f"Failed to add token usage from OpenLIT: {e}")
+
+                                # Also write to debug log (same format as OpenLIT)
+                                try:
+                                    debug_log_file = _project_root / "token_count_debug.log"
+                                    # Determine call type from response
+                                    finish_reason = response_json.get("choices", [{}])[0].get("finish_reason", "stop")
+                                    call_type = "tool_call" if finish_reason == "tool_calls" else "completion"
+                                    tool_name = "N/A"
+                                    if call_type == "tool_call":
+                                        # Try to get tool name from response
+                                        tool_calls = response_json.get("choices", [{}])[0].get("message", {}).get("tool_calls", [])
+                                        if tool_calls:
+                                            tool_name = tool_calls[0].get("function", {}).get("name", "N/A")
                                     
-                                    # Also write to debug log (same format as OpenLIT)
-                                    try:
-                                        debug_log_file = _project_root / "token_count_debug.log"
-                                        # Determine call type from response
-                                        finish_reason = response_json.get("choices", [{}])[0].get("finish_reason", "stop")
-                                        call_type = "tool_call" if finish_reason == "tool_calls" else "completion"
-                                        tool_name = "N/A"
-                                        if call_type == "tool_call":
-                                            # Try to get tool name from response
-                                            tool_calls = response_json.get("choices", [{}])[0].get("message", {}).get("tool_calls", [])
-                                            if tool_calls:
-                                                tool_name = tool_calls[0].get("function", {}).get("name", "N/A")
-                                        
-                                        with open(debug_log_file, "a", encoding="utf-8") as f:
-                                            f.write(f"{model},{prompt_tokens},{completion_tokens},{call_type},{tool_name}\n")
-                                    except Exception:
-                                        pass  # Silently fail debug logging
+                                    with open(debug_log_file, "a", encoding="utf-8") as f:
+                                        f.write(f"{model},{prompt_tokens},{completion_tokens},{call_type},{tool_name}\n")
+                                except Exception:
+                                    pass  # Silently fail debug logging
                                 except Exception as e:
                                     _write_to_log(f"Failed to add token usage to state: {e}")
                 except Exception as e:

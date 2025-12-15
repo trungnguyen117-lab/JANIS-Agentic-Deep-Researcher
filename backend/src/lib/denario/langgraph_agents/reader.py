@@ -1,8 +1,6 @@
 import os
 from langchain_core.runnables import RunnableConfig
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
 
 from .parameters import GraphState
 from ..config import INPUT_FILES, IDEA_FILE, METHOD_FILE, LITERATURE_FILE, REFEREE_FILE, PAPER_FOLDER
@@ -17,20 +15,22 @@ def preprocess_node(state: GraphState, config: RunnableConfig):
 
     #########################################
     # set the LLM
-    if 'gemini' in state['llm']['model']:
-        state['llm']['llm'] = ChatGoogleGenerativeAI(model=state['llm']['model'],
-                                                temperature=state['llm']['temperature'],
-                                                google_api_key=state["keys"].GEMINI)
+    # Always use OpenAI-compatible interface (your base URL can proxy any model name).
+    model_name = state["llm"]["model"]
+    keys = state["keys"]
+    api_base = os.environ.get("API_BASE_URL")
 
-    elif any(key in state['llm']['model'] for key in ['gpt', 'o3']):
-        state['llm']['llm'] = ChatOpenAI(model=state['llm']['model'],
-                                         temperature=state['llm']['temperature'],
-                                         openai_api_key=state["keys"].OPENAI)
-                    
-    elif 'claude' in state['llm']['model']  or 'anthropic' in state['llm']['model'] :
-        state['llm']['llm'] = ChatAnthropic(model=state['llm']['model'],
-                                            temperature=state['llm']['temperature'],
-                                            anthropic_api_key=state["keys"].ANTHROPIC)
+    openai_api_key = keys.OPENAI or os.getenv("OPENAI_API_KEY")
+
+    kwargs = {
+        "model": model_name,
+        "temperature": state["llm"]["temperature"],
+        "openai_api_key": openai_api_key,
+    }
+    if api_base:
+        kwargs["base_url"] = api_base
+
+    state["llm"]["llm"] = ChatOpenAI(**kwargs)
     #########################################
 
     #########################################

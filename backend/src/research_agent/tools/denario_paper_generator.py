@@ -342,60 +342,72 @@ Provide the results in a clear, concise manner, suitable for a scientific paper'
                 
                 # Step 1: Generate research idea based on data description
                 print("[Denario] 📝 Generating research idea...", flush=True)
-                den.get_idea(mode="fast", llm="gpt-4o-mini")
+                # Use Denario's original default model configuration for stability
+                den.get_idea(mode="fast")
                 logger.info("Research idea generated")
                 
                 # Step 2: Generate methodology to test the idea
                 print("[Denario] 🔬 Generating methodology...", flush=True)
-                den.get_method(mode="fast", llm="gpt-4o-mini")
+                # Use Denario's original default model configuration for stability
+                den.get_method(mode="fast")
                 logger.info("Methodology generated")
                 
                 # Step 3: Generate results (theoretical or experimental)
-                # Check if outline explicitly requires CODE EXECUTION (not just mentions "experiments")
-                # Default to theoretical mode - only run experiments if explicitly required
+                # Default: run experiments to unlock plots/figures, but keep them lightweight.
+                # Skip experiments only if the outline explicitly indicates theoretical-only,
+                # or if DENARIO_FORCE_THEORETICAL=true is set.
                 outline_text = json.dumps(outline, indent=2).lower()
-                
-                # DEFAULT: Use theoretical mode (no code execution)
-                # Only run experiments if outline EXPLICITLY requires code execution
-                explicit_code_keywords = [
-                    "run code", "execute code", "implement code", "write code",
-                    "generate code", "execute script", "run script", "compile code",
-                    "install package", "pip install", "code implementation",
-                    "programmatic implementation", "software implementation with code"
-                ]
-                
-                # Check for theoretical-only indicators (these should ALWAYS skip experiments)
+
+                # Theoretical-only indicators (skip experiments if present)
                 theoretical_indicators = [
                     "theoretical", "literature-based", "literature review", "conceptual",
                     "no code", "no implementation", "theoretical analysis", "theoretical study",
                     "literature analysis", "survey", "review paper", "literature survey"
                 ]
-                
-                has_explicit_code = any(keyword in outline_text for keyword in explicit_code_keywords)
                 has_theoretical_indicator = any(indicator in outline_text for indicator in theoretical_indicators)
-                
-                # Only run experiments if:
-                # 1. Outline explicitly mentions code execution commands AND
-                # 2. Outline does NOT have theoretical indicators
-                requires_experiments = has_explicit_code and not has_theoretical_indicator
-                
-                # Check environment variable override
+
+                # Run experiments unless forced theoretical.
+                requires_experiments = not has_theoretical_indicator
+
+                # Environment override
                 import os
-                force_theoretical = os.getenv("DENARIO_FORCE_THEORETICAL", "true").lower() == "true"
-                
+                force_theoretical = os.getenv("DENARIO_FORCE_THEORETICAL", "false").lower() == "true"
+
+                # Lightweight constraints to keep experiments cheap and quick
+                lightweight_constraints = (
+                    "Lightweight only: no package installation; no internet fetch; "
+                    "prefer built-ins; small synthetic data; keep runtime under 3 minutes; "
+                    "avoid heavy training/large downloads; CPU-friendly."
+                )
+
                 if requires_experiments and not force_theoretical:
-                    logger.warning("⚠️ Outline explicitly requires code execution - running experiments (this will install packages)")
-                    print("[Denario] ⚠️ WARNING: Running code execution mode - packages may be installed", flush=True)
-                    print("[Denario] 🧪 Running experiments and generating results...", flush=True)
-                    den.get_results(
-                        engineer_model="gpt-4o-mini",
-                        researcher_model="gpt-4o-mini",
-                        planner_model="gpt-4o-mini",
-                        plan_reviewer_model="gpt-4o-mini",
-                        orchestration_model="gpt-4o-mini",
-                        formatter_model="gpt-4o-mini",
-                    )
-                    logger.info("Results generated")
+                    logger.info("🧪 Running experiments in lightweight mode (constraints applied)")
+                    print("[Denario] 🧪 Running experiments (lightweight: no installs, small synthetic data, <3min)...", flush=True)
+                    # Try experiments up to 2 times; on persistent failure, fall back to theoretical mode
+                    experiments_succeeded = False
+                    last_error = None
+                    for attempt in range(2):
+                        try:
+                            logger.info(f"Attempt {attempt+1}/2 for experimental results")
+                            den.get_results(
+                                hardware_constraints=lightweight_constraints,
+                                max_n_attempts=3,
+                                max_n_steps=3,
+                            )
+                            experiments_succeeded = True
+                            logger.info("Results generated via experiments")
+                            break
+                        except Exception as exp_err:
+                            last_error = exp_err
+                            logger.warning(f"Experiment attempt {attempt+1} failed: {exp_err}")
+                    if not experiments_succeeded:
+                        logger.warning(
+                            f"All experimental attempts failed (last error: {last_error}). "
+                            "Falling back to theoretical results."
+                        )
+                        print("[Denario] ⚠️ Experiments failed; falling back to theoretical results.", flush=True)
+                        _generate_theoretical_results(den, outline, project_dir)
+                        logger.info("Theoretical results generated after experiment failure")
                 else:
                     if force_theoretical and requires_experiments:
                         logger.info("⚠️ Code execution requested but DENARIO_FORCE_THEORETICAL=true - using theoretical mode")
@@ -414,9 +426,9 @@ Provide the results in a clear, concise manner, suitable for a scientific paper'
                 # Step 4: Generate paper from research results
                 # The outline guides the structure, but content comes from actual research
                 print("[Denario] 📄 Generating paper from research results...", flush=True)
+                # Use Denario's internal default models for paper writing
                 den.get_paper(
                     journal=Journal.NONE,
-                    llm="gpt-4o-mini",  # Default model, can be configured
                     writer="scientist",
                     cmbagent_keywords=False,
                     add_citations=True,
@@ -805,75 +817,76 @@ Generate comprehensive theoretical results that would be expected from this rese
                     # Step 1: Generate research idea based on data description
                     print("[Denario] 📝 Generating research idea...", flush=True)
                     send_log("📝 Generating research idea...")
-                    den.get_idea(mode="fast", llm="gpt-4o-mini")
+                    # Use Denario's original default model configuration for stability
+                    den.get_idea(mode="fast")
                     logger.info("Research idea generated")
                     send_log("✅ Research idea generated")
                     
                     # Step 2: Generate methodology to test the idea
                     print("[Denario] 🔬 Generating methodology...", flush=True)
                     send_log("🔬 Generating methodology...")
-                    den.get_method(mode="fast", llm="gpt-4o-mini")
+                    # Use Denario's original default model configuration for stability
+                    den.get_method(mode="fast")
                     logger.info("Methodology generated")
                     send_log("✅ Methodology generated")
                     
-                    # Step 3: Generate theoretical results (no code execution)
-                    # Check if outline explicitly requires CODE EXECUTION (not just mentions "experiments")
-                    # Default to theoretical mode - only run experiments if explicitly required
+                    # Step 3: Generate results (theoretical or experimental)
+                    # Default: run experiments (to get plots) but keep them lightweight.
+                    # Skip experiments if outline signals theoretical-only or env forces theoretical.
                     outline_text = json.dumps(outline, indent=2).lower()
-                    
-                    # DEFAULT: Use theoretical mode (no code execution)
-                    # Only run experiments if outline EXPLICITLY requires code execution
-                    # Remove "experiments" from keywords - theoretical papers mention experiments too
-                    explicit_code_keywords = [
-                        "run code", "execute code", "implement code", "write code",
-                        "generate code", "execute script", "run script", "compile code",
-                        "install package", "pip install", "code implementation",
-                        "programmatic implementation", "software implementation with code"
-                    ]
-                    
-                    # Check for theoretical-only indicators (these should ALWAYS skip experiments)
+
+                    # Theoretical-only indicators (these should ALWAYS skip experiments)
                     theoretical_indicators = [
                         "theoretical", "literature-based", "literature review", "conceptual",
                         "no code", "no implementation", "theoretical analysis", "theoretical study",
                         "literature analysis", "survey", "review paper", "literature survey"
                     ]
-                    
-                    has_explicit_code = any(keyword in outline_text for keyword in explicit_code_keywords)
+
                     has_theoretical_indicator = any(indicator in outline_text for indicator in theoretical_indicators)
-                    
-                    # DEFAULT TO THEORETICAL MODE
-                    # Only run experiments if:
-                    # 1. Outline explicitly mentions code execution commands AND
-                    # 2. Outline does NOT have theoretical indicators
-                    requires_experiments = has_explicit_code and not has_theoretical_indicator
-                    
-                    if requires_experiments:
-                        logger.warning("⚠️ Outline explicitly requires code execution - running experiments (this will install packages)")
-                        print("[Denario] ⚠️ WARNING: Running code execution mode - packages may be installed", flush=True)
-                    else:
-                        logger.info("✅ Using theoretical mode (no code execution) - outline does not explicitly require code execution")
-                        print("[Denario] ✅ Using theoretical research mode (no code execution, no package installation)", flush=True)
-                    
-                    # FORCE THEORETICAL MODE BY DEFAULT
-                    # Only allow experiments if outline has explicit code execution requirement
-                    # AND user hasn't disabled it via environment variable
+
+                    # Run experiments unless theoretical indicators are present
+                    requires_experiments = not has_theoretical_indicator
+
                     import os
-                    force_theoretical = os.getenv("DENARIO_FORCE_THEORETICAL", "true").lower() == "true"
-                    
+                    force_theoretical = os.getenv("DENARIO_FORCE_THEORETICAL", "false").lower() == "true"
+
+                    lightweight_constraints = (
+                        "Lightweight only: no package installation; no internet fetch; "
+                        "prefer built-ins; small synthetic data; keep runtime under 3 minutes; "
+                        "avoid heavy training/large downloads; CPU-friendly."
+                    )
+
                     if requires_experiments and not force_theoretical:
-                        print("[Denario] 🧪 Running experiments and generating results...", flush=True)
-                        send_log("🧪 Running experiments and generating results...")
-                        logger.warning("⚠️ Code execution mode enabled - this will install packages and run code")
-                        den.get_results(
-                            engineer_model="gpt-4o-mini",
-                            researcher_model="gpt-4o-mini",
-                            planner_model="gpt-4o-mini",
-                            plan_reviewer_model="gpt-4o-mini",
-                            orchestration_model="gpt-4o-mini",
-                            formatter_model="gpt-4o-mini",
-                        )
-                        logger.info("Results generated")
-                        send_log("✅ Results generated")
+                        print("[Denario] 🧪 Running experiments (lightweight: no installs, small synthetic data, <3min)...", flush=True)
+                        send_log("🧪 Running experiments (lightweight: no installs, small synthetic data, <3min)...")
+                        experiments_succeeded = False
+                        last_error = None
+                        for attempt in range(2):
+                            try:
+                                logger.info(f"Attempt {attempt+1}/2 for experimental results (async path)")
+                                den.get_results(
+                                    hardware_constraints=lightweight_constraints,
+                                    max_n_attempts=3,
+                                    max_n_steps=3,
+                                )
+                                experiments_succeeded = True
+                                logger.info("Results generated via experiments (async path)")
+                                send_log("✅ Results generated")
+                                break
+                            except Exception as exp_err:
+                                last_error = exp_err
+                                logger.warning(f"Experiment attempt {attempt+1} failed (async path): {exp_err}")
+                                send_log(f"⚠️ Experiment attempt {attempt+1} failed; retrying...")
+                        if not experiments_succeeded:
+                            logger.warning(
+                                f"All experimental attempts failed in async path (last error: {last_error}). "
+                                "Falling back to theoretical results."
+                            )
+                            print("[Denario] ⚠️ Experiments failed; falling back to theoretical results.", flush=True)
+                            send_log("⚠️ Experiments failed; falling back to theoretical results.")
+                            _generate_theoretical_results(den, outline, send_log)
+                            logger.info("Theoretical results generated after experiment failure (async path)")
+                            send_log("✅ Theoretical results generated")
                     else:
                         if force_theoretical and requires_experiments:
                             logger.info("⚠️ Code execution requested but DENARIO_FORCE_THEORETICAL=true - using theoretical mode")
@@ -892,9 +905,9 @@ Generate comprehensive theoretical results that would be expected from this rese
                     # The outline guides the structure, but content comes from actual research
                     print("[Denario] 📄 Generating paper from research results...", flush=True)
                     send_log("📄 Generating paper from research results...")
+                    # Use Denario's internal default models for paper writing
                     den.get_paper(
                         journal=Journal.NONE,
-                        llm="gpt-4o-mini",
                         writer="scientist",
                         cmbagent_keywords=False,
                         add_citations=True,

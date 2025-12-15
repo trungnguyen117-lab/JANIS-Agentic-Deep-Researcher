@@ -151,8 +151,11 @@ def _execute_query(payload, keys: KeyManager):
             # Log the actual response for debugging
             print(f"[Perplexity] Failed to parse JSON response. Status: {response_obj.status_code}")
             print(f"[Perplexity] Response text (first 500 chars): {response_obj.text[:500]}")
-            raise ValueError(f"Invalid JSON response from Perplexity API: {e}. Status: {response_obj.status_code}, Response: {response_obj.text[:200]}")
-        
+            raise ValueError(
+                f"Invalid JSON response from Perplexity API: {e}. "
+                f"Status: {response_obj.status_code}, Response: {response_obj.text[:200]}"
+            )
+
         return response
         
     except requests.exceptions.RequestException as e:
@@ -266,7 +269,7 @@ def process_tex_file_with_references(text, keys: KeyManager, nparagraphs=None, l
         use_perplexity = keys.PERPLEXITY and keys.PERPLEXITY.strip() != ""
         
         if use_perplexity:
-            # Try Perplexity first if API key is available
+            # Try Perplexity first if API key is available, with simple retry
             for attempt in range(2):
                 try:
                     new_para, citations = perplexity(para, keys)

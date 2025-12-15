@@ -248,11 +248,12 @@ class Denario:
             print("Warning: preprocess_task not available in cmbagent. Using original data description.")
             enhanced_text = self.research.data_description
         else:
-            enhanced_text = preprocess_task(self.research.data_description,
-                                        work_dir = self.project_dir,
-                                        summarizer_model = summarizer_model,
-                                        summarizer_response_formatter_model = summarizer_response_formatter_model
-                                        )
+            enhanced_text = preprocess_task(
+                self.research.data_description,
+                work_dir=self.project_dir,
+                summarizer_model=summarizer_model,
+                summarizer_response_formatter_model=summarizer_response_formatter_model,
+            )
         
         # Debug: Check if the enhanced text is different from original
         print(f"Original text length: {len(self.research.data_description)}")
@@ -287,7 +288,8 @@ class Denario:
 
     def get_idea(self,
                  mode = "fast",
-                 llm: LLM | str = models["gemini-2.0-flash"],
+                 # Default to a strong OpenAI model instead of Gemini for better stability
+                 llm: LLM | str = models["gpt-4o"],
                  idea_maker_model: LLM | str = models["gpt-4o"],
                  idea_hater_model: LLM | str = models["o3-mini"],
                  planner_model: LLM | str = models["gpt-4o"],
@@ -372,7 +374,8 @@ class Denario:
         self.idea = idea
 
     def get_idea_fast(self,
-                      llm: LLM | str = models["gemini-2.0-flash"],
+                      # Default to a strong OpenAI model instead of Gemini for better stability
+                      llm: LLM | str = models["gpt-4o"],
                       iterations: int = 4,
                       verbose=False,
                       ) -> None:
@@ -901,14 +904,14 @@ class Denario:
             ))
         else:
             # Blocking execution (backward compatibility)
-            asyncio.run(graph.ainvoke(input_state, config)) # type: ignore
-            
-            # End timer and report duration in minutes and seconds
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            minutes = int(elapsed_time // 60)
-            seconds = int(elapsed_time % 60)
-            print(f"Paper written in {minutes} min {seconds} sec.")
+            asyncio.run(graph.ainvoke(input_state, config))  # type: ignore
+        
+        # End timer and report duration in minutes and seconds
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        minutes = int(elapsed_time // 60)
+        seconds = int(elapsed_time % 60)
+        print(f"Paper written in {minutes} min {seconds} sec.")    
     
     async def _stream_paper_generation(
         self,
