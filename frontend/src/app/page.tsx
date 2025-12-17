@@ -307,6 +307,7 @@ export default function HomePage() {
       {selectedFile && (
         <FileViewDialog
           file={selectedFile}
+          threadId={threadId}
           onClose={() => setSelectedFile(null)}
         />
       )}

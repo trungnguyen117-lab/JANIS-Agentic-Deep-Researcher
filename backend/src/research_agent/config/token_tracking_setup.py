@@ -24,14 +24,16 @@ def setup_token_tracking():
     which is configured in main.py. The token usage is queried from the API.
     """
     if TOKEN_TRACKING_LIBRARY == "opentelemetry":
-        from backend.config.opentelemetry_tracker import setup_opentelemetry_tracking
+        # Use local OpenTelemetry tracker instead of backend.config.*
+        from .opentelemetry_tracker import setup_opentelemetry_tracking
         setup_opentelemetry_tracking()
     elif TOKEN_TRACKING_LIBRARY == "langfuse":
         # Langfuse uses CallbackHandler (configured in main.py)
         # No setup needed here - token usage is queried from API
         pass
     else:  # default to openlit
-        from backend.config.openlit_setup import setup_openlit
+        # Use local OpenLIT setup instead of backend.config.*
+        from .openlit_setup import setup_openlit
         setup_openlit()
 
 

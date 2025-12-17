@@ -11,7 +11,7 @@ in langgraph.json under http.app. The langgraph dev command will use this app
 and automatically add all LangGraph API routes.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from pathlib import Path
 import os
@@ -26,13 +26,30 @@ app = FastAPI(
 
 # Get project root directory (parent of backend)
 PROJECT_ROOT = Path(__file__).parent.parent
-PAPER_DIR = PROJECT_ROOT / "project" / "paper"
+
+
+def get_paper_dir(thread_id: str | None) -> Path:
+    """Return the paper directory for a given thread.
+
+    If thread_id is provided, use thread-specific directory:
+      project/threads/{thread_id}/paper
+    Otherwise, fall back to legacy shared directory:
+      project/paper
+    """
+    project_dir = PROJECT_ROOT / "project"
+    if thread_id:
+        return project_dir / "threads" / thread_id / "paper"
+    return project_dir / "paper"
 
 
 @app.get("/api/paper/latex")
-async def get_latex_file():
-    """Serve the final LaTeX file (paper_v4_final.tex)."""
-    latex_path = PAPER_DIR / "paper_v4_final.tex"
+async def get_latex_file(thread_id: str | None = Query(default=None)):
+    """Serve the final LaTeX file (paper_v4_final.tex).
+
+    If thread_id is provided, read from the thread-specific directory.
+    """
+    paper_dir = get_paper_dir(thread_id)
+    latex_path = paper_dir / "paper_v4_final.tex"
     if not latex_path.exists():
         raise HTTPException(status_code=404, detail="LaTeX file not found. Paper may not be generated yet.")
     return FileResponse(
@@ -44,9 +61,13 @@ async def get_latex_file():
 
 
 @app.get("/api/paper/pdf")
-async def get_pdf_file():
-    """Serve the final PDF file (paper_v4_final.pdf)."""
-    pdf_path = PAPER_DIR / "paper_v4_final.pdf"
+async def get_pdf_file(thread_id: str | None = Query(default=None)):
+    """Serve the final PDF file (paper_v4_final.pdf).
+
+    If thread_id is provided, read from the thread-specific directory.
+    """
+    paper_dir = get_paper_dir(thread_id)
+    pdf_path = paper_dir / "paper_v4_final.pdf"
     if not pdf_path.exists():
         raise HTTPException(status_code=404, detail="PDF file not found. Paper may not be generated yet or xelatex compilation failed.")
     return FileResponse(
@@ -58,12 +79,16 @@ async def get_pdf_file():
 
 
 @app.get("/api/paper/convert-to-pdf")
-async def convert_latex_to_pdf():
-    """Convert LaTeX file to PDF using xelatex."""
+async def convert_latex_to_pdf(thread_id: str | None = Query(default=None)):
+    """Convert LaTeX file to PDF using xelatex.
+
+    If thread_id is provided, operate in the thread-specific directory.
+    """
     import subprocess
     import asyncio
     
-    latex_path = PAPER_DIR / "paper_v4_final.tex"
+    paper_dir = get_paper_dir(thread_id)
+    latex_path = paper_dir / "paper_v4_final.tex"
     if not latex_path.exists():
         raise HTTPException(status_code=404, detail="LaTeX file not found. Paper may not be generated yet.")
     
@@ -85,7 +110,7 @@ async def convert_latex_to_pdf():
     def compile_pdf():
         result = subprocess.run(
             ["xelatex", "-interaction=nonstopmode", "-file-line-error", "paper_v4_final.tex"],
-            cwd=str(PAPER_DIR),
+            cwd=str(paper_dir),
             input="\n",
             capture_output=True,
             text=True,
@@ -105,7 +130,7 @@ async def convert_latex_to_pdf():
         raise HTTPException(status_code=500, detail=f"PDF compilation error: {str(e)}")
     
     # Return the generated PDF
-    pdf_path = PAPER_DIR / "paper_v4_final.pdf"
+    pdf_path = paper_dir / "paper_v4_final.pdf"
     if not pdf_path.exists():
         raise HTTPException(status_code=500, detail="PDF compilation completed but file not found")
     
@@ -118,10 +143,14 @@ async def convert_latex_to_pdf():
 
 
 @app.get("/api/paper/status")
-async def get_paper_status():
-    """Get status of generated paper files."""
-    latex_path = PAPER_DIR / "paper_v4_final.tex"
-    pdf_path = PAPER_DIR / "paper_v4_final.pdf"
+async def get_paper_status(thread_id: str | None = Query(default=None)):
+    """Get status of generated paper files.
+
+    If thread_id is provided, report status for the thread-specific directory.
+    """
+    paper_dir = get_paper_dir(thread_id)
+    latex_path = paper_dir / "paper_v4_final.tex"
+    pdf_path = paper_dir / "paper_v4_final.pdf"
     
     return {
         "latex_exists": latex_path.exists(),

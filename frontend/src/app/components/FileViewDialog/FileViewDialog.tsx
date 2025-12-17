@@ -11,14 +11,16 @@ import type { FileItem } from "../../types/types";
 import { markdownToLatex, markdownToWord } from "../../utils/exportUtils";
 import { extractFileContent } from "../../utils/fileContentUtils";
 import styles from "./FileViewDialog.module.scss";
+import { getDeployment } from "@/lib/environment/deployments";
 
 interface FileViewDialogProps {
   file: FileItem;
+  threadId: string | null;
   onClose: () => void;
 }
 
 export const FileViewDialog = React.memo<FileViewDialogProps>(
-  ({ file, onClose }) => {
+  ({ file, threadId, onClose }) => {
     const [showExportMenu, setShowExportMenu] = useState(false);
     const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -109,6 +111,69 @@ export const FileViewDialog = React.memo<FileViewDialogProps>(
       return extractFileContent(file.content);
     }, [file.content]);
 
+    // For paper LaTeX files, fetch the full content directly from the backend using the threadId
+    const [remoteContent, setRemoteContent] = useState<string | null>(null);
+    const [isLoadingRemote, setIsLoadingRemote] = useState(false);
+    const [remoteError, setRemoteError] = useState<string | null>(null);
+
+    useEffect(() => {
+      // Only fetch for paper LaTeX files
+      if (!isPaperFile || !isLatex) {
+        setRemoteContent(null);
+        setRemoteError(null);
+        setIsLoadingRemote(false);
+        return;
+      }
+
+      let cancelled = false;
+      const fetchContent = async () => {
+        try {
+          setIsLoadingRemote(true);
+          setRemoteError(null);
+          // Use Next.js local API route to read from shared ../project folder on the server
+          const url = threadId
+            ? `/api/local-paper/latex?thread_id=${encodeURIComponent(threadId)}`
+            : `/api/local-paper/latex`;
+          const response = await fetch(url);
+          if (!response.ok) {
+            const text = await response.text().catch(() => "");
+            throw new Error(
+              text || `Failed to load LaTeX content (status ${response.status})`,
+            );
+          }
+          const text = await response.text();
+          if (!cancelled) {
+            setRemoteContent(text);
+          }
+        } catch (error: any) {
+          if (!cancelled) {
+            setRemoteError(
+              error?.message || "Failed to load LaTeX content from server.",
+            );
+            setRemoteContent(null);
+          }
+        } finally {
+          if (!cancelled) {
+            setIsLoadingRemote(false);
+          }
+        }
+      };
+
+      fetchContent();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [isPaperFile, isLatex, threadId, file.path]);
+
+    const displayContent = useMemo(() => {
+      // Prefer remote content for paper LaTeX files, fall back to state content
+      if (remoteContent && isPaperFile && isLatex) {
+        return remoteContent;
+      }
+      return contentString;
+    }, [remoteContent, contentString, isPaperFile, isLatex]);
+
     const handleCopy = useCallback(() => {
       if (contentString) {
         navigator.clipboard.writeText(contentString);
@@ -116,20 +181,44 @@ export const FileViewDialog = React.memo<FileViewDialogProps>(
     }, [contentString]);
 
     const handleDownload = useCallback(async () => {
-      // For paper files, download from API endpoint
+      // For paper files, handle LaTeX/PDF specially
       if (isPaperFile) {
-        const { getDeployment } = await import("@/lib/environment/deployments");
-        const deployment = getDeployment();
-        
+        // LaTeX: download the full content we're displaying (from ../project),
+        // using the same base name but .tex extension
         if (isLatex) {
-          window.open(`${deployment.deploymentUrl}/api/paper/latex`, '_blank');
-        } else if (isPdf) {
-          window.open(`${deployment.deploymentUrl}/api/paper/pdf`, '_blank');
+          const texContent = displayContent || contentString;
+          if (texContent) {
+            const baseName = file.path.split("/").pop() || "paper_v4_final.tex";
+            const texName = baseName.endsWith(".tex") ? baseName : `${baseName}.tex`;
+            const blob = new Blob([texContent], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = texName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
+          return;
         }
-        return;
+
+        // PDF: use local Next.js route that reads from ../project, with same base name as LaTeX
+        if (isPdf) {
+          const baseName = file.path.split("/").pop() || "paper_v4_final.pdf";
+          const pdfName = baseName.endsWith(".pdf") ? baseName : `${baseName}.pdf`;
+          const params = new URLSearchParams();
+          params.set("filename", pdfName);
+          if (threadId) {
+            params.set("thread_id", threadId);
+          }
+          const url = `/api/local-paper/pdf?${params.toString()}`;
+          window.open(url, "_blank");
+          return;
+        }
       }
-      
-      // For other files, download from content
+
+      // For other files, download from in-memory content
       if (contentString) {
         const blob = new Blob([contentString], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
@@ -141,7 +230,7 @@ export const FileViewDialog = React.memo<FileViewDialogProps>(
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
-    }, [contentString, file.path, isPaperFile, isLatex, isPdf]);
+    }, [contentString, displayContent, file.path, isPaperFile, isLatex, isPdf, threadId]);
 
     const handleExportMarkdown = useCallback(() => {
       handleDownload();
@@ -328,43 +417,17 @@ export const FileViewDialog = React.memo<FileViewDialogProps>(
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={async () => {
-                        const { getDeployment } = await import("@/lib/environment/deployments");
-                        const deployment = getDeployment();
-                        try {
-                          // Try to download PDF directly first
-                          const pdfResponse = await fetch(`${deployment.deploymentUrl}/api/paper/pdf`);
-                          if (pdfResponse.ok) {
-                            const blob = await pdfResponse.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = "paper_v4_final.pdf";
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            window.URL.revokeObjectURL(url);
-                          } else {
-                            // If PDF doesn't exist, try to convert
-                            const convertResponse = await fetch(`${deployment.deploymentUrl}/api/paper/convert-to-pdf`);
-                            if (convertResponse.ok) {
-                              const blob = await convertResponse.blob();
-                              const url = window.URL.createObjectURL(blob);
-                              const a = document.createElement("a");
-                              a.href = url;
-                              a.download = "paper_v4_final.pdf";
-                              document.body.appendChild(a);
-                              a.click();
-                              document.body.removeChild(a);
-                              window.URL.revokeObjectURL(url);
-                            } else {
-                              const error = await convertResponse.json();
-                              alert(`Failed to get PDF: ${error.detail || 'PDF not available. Try converting first.'}`);
-                            }
-                          }
-                        } catch (error) {
-                          alert(`Error getting PDF: ${error}`);
+                      onClick={() => {
+                        // Derive PDF name from the LaTeX file name (same base name, .pdf extension)
+                        const baseName = file.path.split("/").pop() || "paper_v4_final.tex";
+                        const pdfName = baseName.replace(/\.tex$/i, ".pdf");
+                        const params = new URLSearchParams();
+                        params.set("filename", pdfName);
+                        if (threadId) {
+                          params.set("thread_id", threadId);
                         }
+                        const url = `/api/local-paper/pdf?${params.toString()}`;
+                        window.open(url, "_blank");
                       }}
                       className={styles.actionButton}
                     >
@@ -384,10 +447,18 @@ export const FileViewDialog = React.memo<FileViewDialogProps>(
                   PDF files cannot be displayed inline. Click "Download" to view the PDF.
                 </p>
               </div>
-            ) : contentString ? (
+              ) : isLoadingRemote && isPaperFile && isLatex ? (
+                <div className={styles.emptyContent}>
+                  <p>Loading LaTeX content from server...</p>
+                </div>
+              ) : remoteError && isPaperFile && isLatex ? (
+                <div className={styles.emptyContent}>
+                  <p>{remoteError}</p>
+                </div>
+              ) : displayContent ? (
               isMarkdown ? (
                 <div className={styles.markdownWrapper}>
-                  <MarkdownContent content={contentString} />
+                  <MarkdownContent content={displayContent} />
                 </div>
               ) : (
                 <div style={{ overflow: "auto", width: "100%" }}>
@@ -405,7 +476,7 @@ export const FileViewDialog = React.memo<FileViewDialogProps>(
                     wrapLines
                     wrapLongLines
                   >
-                    {contentString}
+                    {displayContent}
                   </SyntaxHighlighter>
                 </div>
               )

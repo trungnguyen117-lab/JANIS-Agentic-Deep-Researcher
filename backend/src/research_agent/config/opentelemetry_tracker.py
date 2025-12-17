@@ -90,8 +90,8 @@ def setup_httpx_interception():
                                 # Extract model name from request or response
                                 model = response_json.get("model", "unknown")
                                 
-                                # Calculate cost (will be done by middleware, but we can log it)
-                                from backend.config.openlit_setup import calculate_custom_cost
+                            # Calculate cost (will be done by middleware, but we can log it)
+                            from .openlit_setup import calculate_custom_cost
                                 cost = calculate_custom_cost(model, prompt_tokens, completion_tokens) or 0.0
                                 
                                 _write_to_log(
@@ -227,7 +227,7 @@ def setup_async_httpx_interception():
                                 model = response_json.get("model", "unknown")
                                 
                                 # Calculate cost (will be done by middleware, but we can log it)
-                                from backend.config.openlit_setup import calculate_custom_cost
+                                from .openlit_setup import calculate_custom_cost
                                 cost = calculate_custom_cost(model, prompt_tokens, completion_tokens) or 0.0
                                 
                                 _write_to_log(

@@ -83,16 +83,15 @@ def create_agent(model_name: str | None = None):
         except Exception as e:
             logger.warning(f"Could not set config in denario_paper_generator context var: {e}")
         
-        # Extract thread_id from config for debugging
+        # Extract thread_id from config for debugging and for reading thread-local files
+        # Reuse the robust helper from denario_paper_generator so we handle all config shapes
         thread_id = None
-        if config:
-            if hasattr(config, 'configurable'):
-                configurable = config.configurable
-                if isinstance(configurable, dict):
-                    thread_id = configurable.get('thread_id')
-                elif hasattr(configurable, 'get'):
-                    thread_id = configurable.get('thread_id')
-        
+        try:
+            from src.research_agent.tools.denario_paper_generator import extract_thread_id_from_config
+            thread_id = extract_thread_id_from_config(config)
+        except Exception as e:
+            logger.warning(f"Failed to extract thread_id using helper: {e}")
+
         if thread_id:
             logger.info(f"🔍 Tools node: thread_id={thread_id}")
         else:

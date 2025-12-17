@@ -25,8 +25,9 @@ def load_custom_pricing():
     
     # Try to load from models.json file (in project root)
     try:
-        from backend.config.model import load_models_config
-        
+        # Use local config loader instead of backend.config.*
+        from .model import load_models_config
+
         config = load_models_config()
         models = config.get("models", {})
         default = config.get("default", {})
