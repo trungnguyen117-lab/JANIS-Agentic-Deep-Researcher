@@ -3,7 +3,7 @@ export interface ToolCall {
   name: string;
   args: any;
   result?: string;
-  status: "pending" | "completed" | "error";
+  status: "pending" | "running" | "in_progress" | "completed" | "error";
   subagentType?: string; // For sub-agent tool calls
   parentToolCallId?: string; // ID of the parent task tool call
   _uniqueId?: string; // Unique identifier for deduplication: `${id}-${parentToolCallId || 'main'}-${messageId || 'unknown'}`
@@ -30,7 +30,7 @@ export interface SubAgent {
   subAgentName: string;
   input: any;
   output?: any;
-  status: "pending" | "active" | "completed" | "error";
+  status: "pending" | "running" | "in_progress" | "active" | "completed" | "error";
 }
 
 export interface FileItem {

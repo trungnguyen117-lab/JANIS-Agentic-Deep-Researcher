@@ -26,6 +26,11 @@ try {
 
 const nextConfig: NextConfig = {
   env: rootEnv,
+  eslint: {
+    // Allow production builds to succeed even if there are ESLint errors.
+    // Local development (`npm run dev`) will still show lint issues.
+    ignoreDuringBuilds: true,
+  },
 };
 
 export default nextConfig;

@@ -279,7 +279,7 @@ export const PlanOutline: React.FC<PlanOutlineProps> = ({
       </div>
       <div className={styles.sectionsList}>
         {sortedSections.length === 0 ? (
-          console.warn("[PlanOutline] ⚠️ No sections to render!") || <div>No sections found</div>
+          <div>No sections found</div>
         ) : (
           sortedSections.map((section, index) => {
             console.log(`[PlanOutline] Rendering section ${index + 1}/${sortedSections.length}:`, section.id, section.title);

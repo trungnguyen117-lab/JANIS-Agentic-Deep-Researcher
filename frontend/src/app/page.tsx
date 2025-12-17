@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, Suspense } from "react";
 import { useQueryState } from "nuqs";
 import { ChatInterface } from "./components/ChatInterface/ChatInterface";
 import { TasksFilesSidebar } from "./components/TasksFilesSidebar/TasksFilesSidebar";
@@ -12,7 +12,7 @@ import type { SubAgent, FileItem, TodoItem, PlanOutline, ToolCall } from "./type
 import { extractFileContent } from "./utils/fileContentUtils";
 import styles from "./page.module.scss";
 
-export default function HomePage() {
+function HomePageInner() {
   const { session } = useAuthContext();
   const [threadId, setThreadId] = useQueryState("threadId");
   const [selectedSubAgent, setSelectedSubAgent] = useState<SubAgent | null>(
@@ -315,3 +315,10 @@ export default function HomePage() {
   );
 }
 
+export default function HomePage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomePageInner />
+    </Suspense>
+  );
+}

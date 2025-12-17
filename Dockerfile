@@ -36,30 +36,32 @@ RUN uv venv .venv && \
 # -------- Frontend setup --------
 WORKDIR /app/frontend
 
-RUN npm ci && npm run build
+RUN npm_config_production=false npm ci && npm run build
 
 # -------- Runtime configuration --------
 WORKDIR /app/backend
 
 # Volumes for persistent data:
 # - /app/project: generated outlines, threads, papers, etc.
-# - /app/frontend/node_modules: cached dependencies
 # - /app/frontend/.next: Next.js build cache/output
-VOLUME ["/app/project", "/app/frontend/node_modules", "/app/frontend/.next"]
+# Note: node_modules is NOT a volume - it's baked into the image during build
+VOLUME ["/app/project", "/app/frontend/.next"]
 
 # Expose backend (LangGraph HTTP API) and frontend ports
 EXPOSE 8000 3000
 
 # Simple process supervisor to run both backend and frontend
-# - Backend: langgraph dev --no-reload (serves HTTP API)
-# - Frontend: next start (serves UI)
+# - Backend: langgraph dev --no-reload (serves HTTP API) - matches Makefile dev-backend pattern
+# - Frontend: npm run start (serves UI) - matches Makefile dev-frontend pattern
+# Note: Using npx to ensure next is found even if node_modules/.bin isn't in PATH
 CMD /bin/bash -lc '\
   source .venv/bin/activate && \
   # Start backend LangGraph server (no reload) \
+  cd /app/backend && \
   langgraph dev --no-reload --host 0.0.0.0 --port 8000 & \
-  # Start frontend Next.js server \
+  # Start frontend Next.js server (using npx to match npm run start behavior) \
   cd /app/frontend && \
-  npm run start -- --port 3000 --hostname 0.0.0.0 \
+  npx --yes next start --port 3000 --hostname 0.0.0.0 \
 '
 
 

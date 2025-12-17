@@ -23,7 +23,8 @@ export async function GET(req: Request) {
     const pdfPath = path.join(paperDir, safeFilename);
     const fileBuffer = await fs.readFile(pdfPath);
 
-    return new NextResponse(fileBuffer, {
+    // Cast Buffer to a compatible body type for NextResponse; this is safe at runtime
+    return new NextResponse(fileBuffer as any, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

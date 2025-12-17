@@ -273,86 +273,12 @@ export function useChat(
         const denarioLog = nodeData && typeof nodeData === 'object' ? (nodeData as any).denario_log : null;
         
         if (denarioProgress || denarioComplete || denarioError || denarioLog) {
-          // Find the generate_paper_from_outline tool call and update its progress
-          setMessages((prevMessages) => {
-            return prevMessages.map((msg) => {
-              const toolCalls = (msg as any).toolCalls || [];
-              const updatedToolCalls = toolCalls.map((toolCall: any) => {
-                if (toolCall.name === "generate_paper_from_outline") {
-                  const currentProgress = toolCall.progress || {
-                    current: 0,
-                    total: 0,
-                    message: "",
-                    updates: [],
-                    logs: [],
-                  };
-                  
-                  if (denarioLog) {
-                    // Add log message to logs array and update main message (keep last 100 logs)
-                    const logs = currentProgress.logs || [];
-                    const logMessage = denarioLog.message || "";
-                    return {
-                      ...toolCall,
-                      progress: {
-                        ...currentProgress,
-                        message: logMessage, // Update main message to show latest log
-                        logs: [...logs, {
-                          timestamp: Date.now(),
-                          message: logMessage,
-                        }].slice(-100), // Keep last 100 log messages
-                      },
-                    };
-                  }
-                  
-                  if (denarioProgress) {
-                    return {
-                      ...toolCall,
-                      progress: {
-                        ...currentProgress,
-                        current: denarioProgress.current ?? currentProgress.current + 1,
-                        total: denarioProgress.total ?? currentProgress.total,
-                        message: denarioProgress.message ?? currentProgress.message,
-                        node: denarioProgress.node,
-                        updates: [
-                          ...currentProgress.updates,
-                          {
-                            timestamp: Date.now(),
-                            message: denarioProgress.message,
-                            node: denarioProgress.node,
-                          },
-                        ],
-                      },
-                    };
-                  } else if (denarioComplete) {
-                    return {
-                      ...toolCall,
-                      status: "completed",
-                      progress: {
-                        ...currentProgress,
-                        message: denarioComplete.message || "Completed",
-                        current: denarioComplete.total || currentProgress.total,
-                        total: denarioComplete.total || currentProgress.total,
-                      },
-                    };
-                  } else if (denarioError) {
-                    return {
-                      ...toolCall,
-                      status: "error",
-                      progress: {
-                        ...currentProgress,
-                        message: denarioError.message || "Error occurred",
-                      },
-                    };
-                  }
-                }
-                return toolCall;
-              });
-              
-              return {
-                ...msg,
-                toolCalls: updatedToolCalls,
-              };
-            });
+          // TODO: Wire Denario progress events into UI state if/when we add local message management here.
+          console.log("[useChat] Denario progress event received (progress/complete/error/log)", {
+            denarioProgress,
+            denarioComplete,
+            denarioError,
+            denarioLog,
           });
         }
         
